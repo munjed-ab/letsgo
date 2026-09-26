@@ -2,6 +2,14 @@ module letsgo
 
 go 1.26.0
 
+// The two replace lines fetch golang.org/x/sys and golang.org/x/text from their official GitHub
+// mirrors at pinned versions. They date from the project's first build environment and are known
+// to work. A trial build without them also compiled and passed the tests, but they have not been
+// removed.
+//
+// golang.org/x/mobile is required below although no Go file imports it: `gomobile bind` (the
+// Android build) refuses to run without it, and `go mod tidy` deletes it. After a tidy, put it back
+// with: go get -tool golang.org/x/mobile/cmd/gobind
 replace golang.org/x/sys => github.com/golang/sys v0.30.0
 
 replace golang.org/x/text => github.com/golang/text v0.22.0

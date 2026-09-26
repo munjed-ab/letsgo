@@ -7,7 +7,8 @@ that can run it. No internet, no cloud, no accounts.
 
 There is no server to set up. **Every device runs the same app.** Whichever device
 is playing is the source; every other device on the network hears it, in sync, and
-shows what is playing. Press play on the new phone and the old phone follows it.
+shows what is playing. Press play on the other phone and the sound *shifts* to it: the
+first one pauses and follows.
 
 ```
    phone A (playing)                       laptop            phone B
@@ -20,31 +21,63 @@ shows what is playing. Press play on the new phone and the old phone follows it.
 Your files stay where they are. Only the audio stream moves between devices, so a
 device that is just listening does not need the music.
 
+## Status: read this first
+
+- It has been used on one Android 14 phone (arm64) and one Linux laptop. That is all it has been
+  tested on in the real world. Other phones, other Linux setups and other networks may hit problems
+  nobody has seen yet.
+- It is built for a **home network you trust**. There is **no login and no encryption**: anyone on the same
+  network can control your devices and listen to the stream. Do not run it on public or shared Wi-Fi.
+  [What is and is not protected](docs/privacy-and-security.md).
+- The Android APK is signed with the debug key so it installs easily. It is not a store release.
+- Much of the code was written with an AI coding assistant; see [How this project is made](#how-this-project-is-made).
+- There are no prebuilt downloads yet: you build it (one command, below).
+
+## Requirements
+
+| | |
+|---|---|
+| **Phone** | Android 7 or newer, **64-bit ARM (arm64)**. Nearly every phone since 2017; not 32-bit or x86 devices or emulators |
+| **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run |
+| **Network** | all devices on the same Wi-Fi/LAN, able to reach each other. TCP 1704 and 8080, UDP 5353 (mDNS) |
+| **To build** | Go 1.26+. For the APK also gomobile, JDK 17, Android SDK 34 + NDK 27, Gradle 8.9 ([details](docs/troubleshooting.md#building-from-source)) |
+
 ## Get it running
 
-**Phone (Android 7+):** copy `dist/letsgo.apk` to the phone (USB, Bluetooth, chat,
-Drive) and install it (allow "install unknown apps" once). Open it and allow access
-to your music when asked. That's it.
+```sh
+git clone <this repository> && cd letsgo
+./build.sh                    # tests, then dist/: letsgo.apk, desktop, play, letsgo-linux-amd64, letsgo-android-arm64
+SKIP_TESTS=1 ./build.sh       # the same without the tests (they take a few minutes)
+```
+
+Without the Android tools the script builds the laptop binaries and says it skipped the APK.
+
+**Phone (Android 7+):** copy `dist/letsgo.apk` to the phone (USB, Bluetooth, chat, Drive) and install it
+(allow "install unknown apps" once). Open it and allow access to your music when asked. That's it.
 
 ```sh
 adb install -r dist/letsgo.apk      # if the phone is plugged in
 ```
 
-**Laptop (Linux):** `./dist/desktop` opens the desktop app and plays through your
-speakers. Media keys and the desktop's media widget work (MPRIS). Run it again and it
-just brings up the window. `./install-desktop.sh` adds letsgo to the applications menu. Its log
-(source changes, reconnects, network stalls) is `~/.cache/letsgo/letsgo.log`.
+**Laptop (Linux):** `./dist/desktop` opens the desktop app and plays through your speakers. Media keys and
+the desktop's media widget work (MPRIS). Run it again and it just brings up the window, or, if you rebuilt,
+replaces the running copy. `./install-desktop.sh` adds letsgo to the applications menu. Its log is
+`~/.cache/letsgo/letsgo.log`.
 
-**Another phone or laptop:** install the same app on the same Wi-Fi. It finds the
-others by itself and shows up in everyone's **Devices** tab under its own name.
-If a network blocks discovery (some routers isolate clients), go to
-*Devices → Listen to → Enter an address…* on the phone, or run the laptop app with
+**Another phone or laptop:** install the same app on the same Wi-Fi. It finds the others by itself and shows
+up in everyone's **Devices** tab under its own name. If a network blocks discovery (some routers isolate
+clients), go to *Devices → Listen to → Enter an address…* on the phone, or run the laptop app with
 `-connect <phone-ip>`.
 
-**Headless server (Termux, Raspberry Pi):** `letsgo-android-arm64` / `letsgo-linux-amd64`
-serve music and the web UI, no audio output:
-`./letsgo -music /sdcard/Music -music /sdcard/Download`. Stock Snapcast clients
+**Headless server (Termux, Raspberry Pi):** `letsgo-android-arm64` / `letsgo-linux-amd64` serve music and the
+web UI, no audio output: `./letsgo -music /sdcard/Music -music /sdcard/Download`. Stock Snapcast clients
 (snapclient, Snapdroid) can connect to any letsgo device too.
+
+| Options | |
+|---|---|
+| Laptop app (`dist/desktop`) | `-music DIR` (repeat), `-name`, `-http :8080`, `-latency MS`, `-buffer MS`, `-connect HOST`, `-no-window`, `-no-discovery` |
+| Headless (`dist/letsgo-*`) | `-music DIR` (repeat), `-data DIR`, `-snap :1704`, `-http :8080`, `-name`, `-buffer MS`, `-no-discovery` |
+| Environment | `LETSGO_NO_DISCOVERY=1` (same as `-no-discovery`), `LETSGO_ALLOWED_HOSTS=name1,name2` (extra names a browser may use to reach a device) |
 
 ## Using it
 
@@ -86,60 +119,69 @@ Favourites and playlists are kept on each device; they are not copied between de
 
 ## How the sync works
 
-Every 20 ms chunk of audio is stamped with the source's clock. Each listener measures its
-clock offset to the source (NTP-style pings, taking the fastest round trips), then plays each
-chunk at *timestamp + buffer*. It also knows how long its own speaker path takes: Android reports
-this exactly (`AudioTrack.getTimestamp`, about 300 ms on a typical phone), the laptop adds oto's
-queue to a measured constant. A phone with a deep buffer and a laptop with a shallow one therefore
-hear the same instant. Small errors are corrected by playing 0.2% fast or slow (inaudible), large
-ones by skipping or padding.
+Every 20 ms chunk of audio is stamped with the source's clock. Each listener measures its clock
+offset to the source (NTP-style pings) and plays each chunk at *timestamp + buffer*, allowing for how long
+its own speaker path takes: Android reports this exactly (about 300 ms on a typical phone), the laptop
+uses a measured estimate. A phone with a deep buffer and a laptop with a shallow one therefore hear the
+same instant. Small errors are corrected by playing 0.2% fast or slow (inaudible), large ones by skipping
+or padding.
 
-The timeline shows the position that is being *heard*, not the one being produced (which is a
-buffer ahead).
-
-Play, next, previous and seek are heard about 0.35 s after you press them, on every device at the
-same instant: the source starts a fresh timeline, stamps its first chunk 0.35 s ahead instead of a
-whole buffer ahead and sends the buffer's worth of audio in one burst, and each chunk carries an
-epoch number so listeners drop what they had queued. Pause stops every device at once (a phone
-plays out the last ~0.3 s already handed to its speaker). A device that joins mid-song is sent the
-audio that is still due, so it starts in step immediately. Devices on *Automatic* check who is
-playing every 0.4 s, and the moment something plays on a device the others follow it.
+Play, next, previous and seek are designed to be heard about **0.35 s** after you press them, on every device
+at the same instant, and pause stops every device at once. A device that joins mid-song starts in step immediately.
 
 **Shift.** Whichever device starts playing is the one talking; the others listen. If a device that is only
-listening (or idle) plays a song of its own, the sound *shifts* to it: it tells the other devices
-it is the source now, they pause and follow it, and all of them hear it in step within about a third
-of a second. It works the same from the phone, the laptop window or a media key, in either direction,
-and does not depend on discovery: the message goes to every device the source knows, including the one
-it was listening to, and it carries the new source's address.
+listening (or idle) plays a song of its own, the sound *shifts* to it: it tells the other devices it is the
+source now, they pause and follow it, and all of them hear it in step (about a third of a second on a fast
+network in the tests; a little more over real Wi-Fi). It works the same from the phone, the laptop window or a media key, in either direction, and does not depend
+on discovery.
 
-**Something sounds early or late?** Bluetooth speakers add 100–250 ms. Use *Devices → Sync offset*
-on that device (or `-latency <ms>` on the laptop app): + plays later, − earlier.
-**Stutters on bad Wi-Fi?** Raise the buffer: `-buffer 1500`.
+The details (wire format, what letsgo adds to the Snapcast protocol, every timing constant) are in
+[docs/how-it-works.md](docs/how-it-works.md).
+
+**Something sounds early or late?** Bluetooth speakers add 100–250 ms. Use *Devices → Sync offset* on that
+device (or `-latency <ms>` on the laptop app): + plays later, − earlier.
+**Stutters on bad Wi-Fi?** Raise the buffer on the playing laptop: `-buffer 1500`.
+More: [docs/troubleshooting.md](docs/troubleshooting.md).
+
+## Your data and your network
+
+- **Nothing leaves your network.** No accounts, no cloud, no analytics, no update check. The source contains
+  no URL that points off your machine or network.
+- **Stored on each device:** favourites, playlists, play counts, your music-folder choices and a cache of
+  song tags. The laptop also keeps a log that contains song file names and device addresses.
+- **Listening:** TCP 1704 (the stream) and TCP 8080 (the web UI and API) on all interfaces, and mDNS on the
+  local network. Devices announce their name (the phone model, or the computer's hostname).
+- **Not protected:** anyone on the network can control a device, read your library's file names and tags,
+  and listen to the stream. Web pages cannot (they are refused), other programs can.
+
+The full picture, the Android permissions and why each is needed, and how to lock it down:
+[docs/privacy-and-security.md](docs/privacy-and-security.md).
 
 ## Build and test
 
 ```sh
-./build.sh          # tests, then dist/: letsgo.apk, desktop, play, letsgo-linux-amd64, letsgo-android-arm64
+./build.sh          # go vet, tests, then dist/
 SKIP_TESTS=1 ./build.sh
 ```
-
-Needs Go. The APK also needs `gomobile`, the Android SDK/NDK and Gradle:
 
 ```sh
 export ANDROID_HOME=$HOME/Android/Sdk ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006
 export GRADLE=/path/to/gradle-8.9/bin/gradle      # if `gradle` is not on PATH
 ```
 
-The tests cover the sync engine in virtual time (drift, jitter, pauses, stalls), the real
-client/server over TCP, seeking in every audio format, tags and cover art, playlists, the HTTP API,
-two nodes controlling each other, MPRIS over the real D-Bus session bus, and the web UI in headless
-Chrome (if `node` and `google-chrome` are installed). Tests never touch your network: they run with
-discovery switched off.
+The tests cover the sync engine in virtual time (drift, jitter, pauses, stalls), the real client and server
+over TCP, seeking in every audio format, tags and cover art, playlists, the HTTP API and its web-page guard,
+two nodes handing the music over to each other (Shift), MPRIS over the real D-Bus session bus, and the web UI
+in headless Chrome (if `node` and `google-chrome` are installed). They never touch your network: they run with
+discovery switched off. The `speaker` test plays 10 seconds of *silence* on your sound card and the `mpris`
+test registers a name on your D-Bus session bus; both skip themselves when the hardware is missing.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## HTTP API
 
 Everything the apps do goes through this, so anything can control any device
-(`http://<device>:8080`; there is no authentication, so use it on a network you trust).
+(`http://<device>:8080`; there is no authentication, so use it on a network you trust; requests
+that come from a web page on another site are refused).
 
 | | |
 |---|---|
@@ -153,20 +195,23 @@ Everything the apps do goes through this, so anything can control any device
 | `GET /api/lists` (also `mostPlayed`, `playCounts`) · `POST /api/fav` `/api/playlist[/update\|delete\|add\|remove]` `/api/folder[/rename\|delete]` | favourites, playlists, folders |
 | `GET/POST /api/sources {add\|remove}` | music folders |
 | `GET /api/peers` · `POST /api/listen {addr}` | other devices; choose one to listen to |
+| `POST /api/shift[?port=]` | the caller has started playing: pause here and follow it (used between devices) |
+| `POST /api/quit` | desktop app only, from the same machine only: quit, so a newer build can replace it |
 
 ## Code map
 
 | | |
 |---|---|
 | `snap/` | the sync protocol (Snapcast wire format), server, and the client's playout engine |
-| `player/` | decoders (mp3, flac, ogg, wav) with seeking, resampler, the timestamping audio loop |
+| `player/` | decoders (mp3, flac, ogg, wav) with seeking, resampler, the timestamping audio loop, shuffle |
 | `meta/` | tags and cover art, cached |
-| `app/` | the node: server + HTTP API + discovery + playlists + media control; `devices.go` is the proxy to other devices; `index.html` is the desktop UI |
+| `app/` | the node: server + HTTP API + discovery + supervisor + playlists + play counts + media control. `shift.go` (Shift), `devices.go` (proxy to other devices), `guard.go` (web-page guard), `index.html` (the UI) |
 | `speaker/` | desktop audio output (oto) and its latency model |
 | `mpris/` | Linux media keys and widget |
 | `mobile/`, `android-app/` | Android: gomobile bridge, the native Compose app, the notification/MediaSession service |
 | `cmd/desktop`, `cmd/play`, `main.go` | laptop app, headless listener, headless server |
 | `webtest/` | web UI test in headless Chrome |
+| `docs/` | how it works, privacy and security, troubleshooting |
 
 ## Known limits
 
@@ -176,7 +221,22 @@ Everything the apps do goes through this, so anything can control any device
 - The laptop app is not native: it shows the web UI in a Chrome-style app window (needs a
   Chrome-family browser, else it opens your default browser).
 - The desktop window controls other devices through this laptop, so it needs the laptop to reach
-  them (same network). There is no authentication anywhere; use it on a network you trust.
+  them (same network).
 - Devices only find each other, and stay in sync, on a network where they can reach one another
   directly (the same Wi-Fi). Across networks (a VPN, say) you have to give the address and raise
   `-buffer`; there is no cloud relay.
+- Shift and the instant controls need the same recent build on both devices; older devices fall back to
+  the old, slower behaviour.
+- No automated builds or releases yet, and no continuous integration.
+
+## How this project is made
+
+Much of the code was written by the maintainer working with an AI coding assistant, Claude Code (Anthropic).
+Those commits carry a `Co-Authored-By` line. The behaviour described here is backed by tests that run over
+real sockets and in real time, and the documentation was checked against the code, but the project has had
+little use beyond its author's own devices. Treat it accordingly and report what you find.
+
+## Contributing, licence
+
+[CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [MIT licence](LICENSE) ·
+[third-party software](THIRD_PARTY.md)
