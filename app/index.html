@@ -1,0 +1,408 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>letsgo</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<style>
+:root{--bg:#111;--fg:#eee;--dim:#999;--ac:#4ade80;--row:#1c1c1c;--line:#262626;--sticky:118px}
+@media (prefers-color-scheme:light){:root{--bg:#fafafa;--fg:#111;--dim:#666;--ac:#16a34a;--row:#eee;--line:#ddd}}
+*{box-sizing:border-box}
+body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--fg);padding-bottom:24px}
+button,input,select{font:inherit;color:var(--fg)}
+button{background:var(--row);border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+button.ac{background:var(--ac);color:#000}button.on{color:var(--ac)}button:disabled{opacity:.4}
+input[type=text],input[type=search],input[type=number],select{background:var(--row);border:0;border-radius:8px;padding:9px 10px}
+select option{background:var(--bg)}
+/* phone-width: player and tabs stick to the top */
+#top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 14px 6px}
+#np{display:flex;gap:10px;align-items:center;flex:1;min-width:0}
+#np img{width:52px;height:52px;border-radius:8px;object-fit:cover;background:var(--row)}
+#np .tx{flex:1;min-width:0}
+#ctl{display:contents}
+#btns{display:flex;gap:6px}
+#volbox{width:90px;display:flex}#volbox input{flex:1;min-width:0}
+.tx b,.tx small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+small,.dim{color:var(--dim);font-size:13px}
+#seek{flex-basis:100%;order:3;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+#seek input{flex:1}
+#side{padding:0 14px}
+#brand{display:none}
+#devpick{display:flex;gap:8px;align-items:center;padding-top:4px}
+#dev{flex:1;min-width:0}
+nav{display:flex;gap:4px;margin-top:6px}
+nav button{flex:1;background:none;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
+nav button.on{border-color:var(--ac)}
+main{padding:0 14px}
+ul{list-style:none;margin:0;padding:0}
+.row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.row img,.row .ph{width:42px;height:42px;border-radius:6px;object-fit:cover;background:var(--row);flex:none;display:flex;align-items:center;justify-content:center}
+.row .tx{flex:1;min-width:0}
+.row .al{display:none}
+.row.cur b{color:var(--ac)}
+.row button{background:none;padding:6px 8px}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 0}
+.sel{position:sticky;top:var(--sticky);background:var(--row);border-radius:10px;padding:8px 10px;margin:8px 0;z-index:4}
+h2{margin:14px 0 4px;font-size:18px}h3{margin:16px 0 4px;font-size:14px;color:var(--ac)}
+dialog{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:12px;max-width:380px;width:90%}
+dialog button{display:block;width:100%;text-align:left;margin:4px 0}
+.crumb button{background:none;padding:4px 6px;color:var(--ac)}
+label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
+.card{background:var(--row);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;flex-direction:column;gap:4px}
+.card.cur{outline:2px solid var(--ac)}
+.card .bar{padding:0}
+.card input{background:var(--bg)}
+
+/* desktop: sidebar, wide track list, player bar along the bottom */
+@media (min-width:860px){
+ :root{--sticky:0px}
+ body{padding:0;height:100vh;overflow:hidden}
+ #app{display:grid;grid-template-columns:232px minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;height:100vh}
+ #top{display:contents}
+ #side{grid-area:1/1;overflow:auto;border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:14px}
+ #brand{display:flex;align-items:center;gap:10px;font-size:20px}
+ #brand img{width:34px;height:34px;border-radius:8px}
+ #devpick{flex-direction:column;align-items:stretch;padding:0;gap:4px}
+ nav{flex-direction:column;margin:0}
+ nav button{flex:none;text-align:left;border-radius:8px;border-bottom:0;padding:10px 12px}
+ nav button.on{background:var(--row);color:var(--ac)}
+ main{grid-area:1/2;overflow:auto;padding:0 28px 24px}
+ header{grid-area:2/1/3/3;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(180px,1fr) minmax(300px,2fr) minmax(140px,1fr);gap:0 24px;padding:10px 20px;background:var(--bg)}
+ #ctl{display:flex;flex-direction:column;gap:6px}
+ #btns{justify-content:center}
+ #seek{flex-basis:auto;order:0}
+ #volbox{justify-self:end;width:160px}
+ .row .al{display:block;flex:0 0 26%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);font-size:13px}
+ .row:hover{background:var(--row)}
+}
+</style></head><body>
+<div id="app">
+<div id="top">
+ <header>
+  <div id="np"><img id="cv" alt=""><div class="tx"><b id="ti">Nothing playing</b><small id="ar"></small></div></div>
+  <div id="ctl">
+   <div id="btns"><button id="bp" title="Previous">⏮</button><button id="bt" class="ac" title="Play / pause (space)">▶</button><button id="bn" title="Next">⏭</button></div>
+   <div id="seek"><span id="el">0:00</span><input id="sk" type="range" min="0" max="1000" value="0"><span id="du">0:00</span></div>
+  </div>
+  <div id="volbox"><input id="vol" type="range" min="0" max="100" title="Volume (all devices)"></div>
+ </header>
+ <aside id="side">
+  <div id="brand"><img src="/logo.svg" alt=""><b>letsgo</b></div>
+  <label id="devpick"><span class="dim">Music from</span><select id="dev" title="Browse and play the music on this device. Playing a song shifts the sound to it: every other device follows"></select></label>
+  <nav id="nav"></nav>
+ </aside>
+</div>
+<main id="view"></main>
+</div>
+<dialog id="dlg"></dialog>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const api=(p,body)=>fetch(p,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  .then(r=>r.ok?(r.status==204?null:r.json()):r.text().then(t=>{throw new Error(t||r.status)}));
+const post=(p,b)=>api(p,b===undefined?{}:b);
+const fail=e=>alert(e.message||e);
+const clock=s=>{s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+
+// `dev` is the device whose music we browse and play from: '' = the device this page runs on, else another
+// device's IP, reached through this node's /dev/<ip>/ proxy. The player bar (barDev) follows this device,
+// which hears the whole group, unless the browsed device is the one playing and this one is not.
+let lib=[],meta={},lists={favorites:[],folders:[],playlists:[]},me={},now={},sources=[],peers=[],ds={},manual=[];
+let tab='music',dir='',query='',openPl=null,selecting=false,sel=new Set(),drag=false;
+let dev='',gen=0,loaded=false,loadErr='',barDev='',volIp='';
+const at=(ip,p)=>ip?'/dev/'+ip+p:p;
+const D=p=>at(dev,p);
+const base=t=>t.split('/').pop().replace(/\.[^.]+$/,'');
+const T=t=>(meta[t]&&meta[t].t)||base(t);
+const A=t=>(meta[t]&&meta[t].a)||t.split('/').slice(0,-1).pop()||'Music';
+const AL=t=>(meta[t]&&meta[t].al)||'';
+const ART=t=>meta[t]&&meta[t].art||'';
+const favs=()=>new Set(lists.favorites);
+const pname=p=>(p.Name||'').replace(/\\ /g,' ');
+const wide=()=>matchMedia('(min-width:860px)').matches;
+const fixSticky=()=>document.documentElement.style.setProperty('--sticky',wide()?'0px':$('top').offsetHeight+'px');
+
+// ---- header / now playing ----
+async function tick(){
+  const g=gen;
+  try{
+    const m=await api('/api/state');
+    let s=m,bd='';
+    if(dev&&!(m.now&&m.now.playing)){const c=await api(D('/api/state')).catch(()=>null);if(c&&c.player&&c.player.playing){s=c;bd=dev}}
+    const n=s.now||{};
+    const vip=n.remote&&n.source?n.source.replace(/:\d+$/,''):bd;   // volume lives on the device that is casting
+    const vs=vip===bd?s:await api(at(vip,'/api/state')).catch(()=>s);
+    if(g!==gen)return;
+    me=m;now=n;barDev=bd;volIp=vip;
+    const artBase=now.remote&&now.source?'http://'+now.source:at(bd,'');
+    $('ti').textContent=now.title||'Nothing playing';
+    $('ar').textContent=[now.artist,now.album].filter(Boolean).join(' · ')||(now.track?(now.context||'Music'):'');
+    $('cv').src=now.art?artBase+'/api/art/'+now.art+'?s=128':'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    $('bt').textContent=now.playing?'⏸':'▶';
+    if(!drag){$('sk').value=now.duration?Math.round(1000*now.elapsed/now.duration):0;$('el').textContent=clock(now.elapsed)}
+    $('du').textContent=now.duration?clock(now.duration):'';
+    $('sk').disabled=!now.duration;
+    if(document.activeElement!==$('vol'))$('vol').value=vs.volume;
+    document.title=(now.title?(now.playing?'▶ ':'')+now.title+(now.artist?' — '+now.artist:'')+' · ':'')+'letsgo';
+    document.querySelectorAll('.row[data-t]').forEach(r=>r.classList.toggle('cur',r.dataset.t===now.track));
+    devSel();if(tab==='dev')renderCards();fixSticky();
+  }catch(e){if(g===gen)$('ti').textContent='server unreachable'}
+}
+$('bt').onclick=()=>{now.playing=!now.playing;$('bt').textContent=now.playing?'⏸':'▶';   // show it now; the next poll confirms
+  post(at(barDev,'/api/control?cmd=toggle')).then(tick).catch(fail)};
+$('bn').onclick=()=>post(at(barDev,'/api/control?cmd=next')).then(tick).catch(fail);
+$('bp').onclick=()=>post(at(barDev,'/api/control?cmd=prev')).then(tick).catch(fail);
+$('vol').onchange=e=>post(at(volIp,'/api/volume?v='+e.target.value)).catch(fail);
+$('sk').oninput=e=>{drag=true;$('el').textContent=clock(e.target.value/1000*now.duration)};
+$('sk').onchange=e=>{const t=e.target.value/1000*now.duration;drag=false;post(at(barDev,'/api/control?cmd=seek&t='+t)).then(tick).catch(fail)};
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey||e.target.closest('input,textarea,select,button'))return;
+  if(e.key===' '){e.preventDefault();$('bt').click()}
+  else if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&now.duration){e.preventDefault();
+    post(at(barDev,'/api/control?cmd=seek&t='+Math.max(0,Math.min(now.duration-1,now.elapsed+(e.key==='ArrowRight'?5:-5))))).then(tick).catch(fail)}
+  else if(e.key==='/'){e.preventDefault();tab='music';openPl=null;render();const q=$('q');if(q)q.focus()}
+});
+
+// ---- which device we control ----
+function devices(){   // [ip, name, state] for this device, then every other one we know of
+  const out=[['',me.name||'This device',me]],seen=new Set(['']);
+  const add=(ip,name)=>{if(!seen.has(ip)){seen.add(ip);out.push([ip,(ds[ip]&&ds[ip].name)||name||ip,ds[ip]])}};
+  peers.forEach(p=>add(p.IP,pname(p)));manual.forEach(ip=>add(ip,ip));if(dev)add(dev,dev);
+  return out;
+}
+function devSel(){
+  const h=devices().map(([ip,n])=>`<option value="${esc(ip)}">${esc(n)}${ip?' · '+esc(ip):' (this device)'}</option>`).join('')+'<option value="__addr">＋ Add by address…</option>';
+  const s=$('dev');if(s.dataset.sig!==h){s.innerHTML=h;s.dataset.sig=h}
+  s.value=dev;
+}
+$('dev').onchange=e=>{
+  let v=e.target.value;
+  if(v==='__addr'){
+    v=(prompt('IP address of the device, e.g. 192.168.0.20')||'').trim().replace(/:\d+$/,'');
+    if(!v){e.target.value=dev;return}
+    if(!manual.includes(v))manual.push(v);
+    loadDevStates();
+  }
+  if(v!==dev)setDev(v);
+};
+function setDev(ip){
+  dev=ip;gen++;loaded=false;loadErr='';
+  lib=[];meta={};lists={favorites:[],folders:[],playlists:[]};sources=[];
+  dir='';query='';openPl=null;clearSel();
+  devSel();render();loadLib();loadLists();tick();
+}
+// Shift: everyone else who is casting stops, so the device we play on becomes the one every device
+// follows. (A device does this by itself when it starts playing; this covers a device that does not know how.)
+async function shift(){
+  await Promise.all(devices().map(d=>d[0]).filter(ip=>ip!==dev).map(async ip=>{
+    try{const s=await api(at(ip,'/api/state'));if(s.player&&s.player.playing)await post(at(ip,'/api/control?cmd=pause&local=1'))}catch(e){}}));
+}
+const play=async(tracks,index,context)=>{await shift();await post(D('/api/queue'),{tracks,index,context})};
+
+// ---- data ----
+async function loadLists(){const g=gen;const l=await api(D('/api/lists')).catch(()=>null);if(g===gen&&l){lists=l;render()}}
+async function loadMeta(){
+  const g=gen,m=await api(D('/api/meta')).catch(()=>null);if(g!==gen||!m)return;
+  meta=m.tracks;render();
+  if(m.done<m.total)setTimeout(loadMeta,3000);
+}
+async function loadLib(){
+  const g=gen;
+  try{const [l,s]=await Promise.all([api(D('/api/library')),api(D('/api/sources'))]);
+    if(g!==gen)return;lib=l;sources=s.dirs;loaded=true;loadErr='';render();loadMeta()}
+  catch(e){if(g===gen){loaded=true;loadErr=e.message;render()}}
+}
+async function loadPeers(){try{peers=await api('/api/peers');devSel();if(tab==='dev')loadDevStates()}catch(e){}}
+async function loadDevStates(){
+  await Promise.all(devices().slice(1).map(([ip])=>api('/dev/'+ip+'/api/state').then(s=>ds[ip]=s,()=>ds[ip]=null)));
+  devSel();if(tab==='dev')renderCards();
+}
+
+// ---- navigation ----
+const tabs=[['music','Music'],['fav','Favorites'],['pl','Playlists'],['dev','Devices']];
+$('nav').innerHTML=tabs.map(([k,n])=>`<button data-tab="${k}">${n}</button>`).join('');
+$('nav').onclick=e=>{const k=e.target.dataset.tab;if(k){tab=k;openPl=null;clearSel();if(k==='dev')loadDevStates();render()}};
+
+function clearSel(){selecting=false;sel=new Set()}
+
+// ---- rendering ----
+function trackRow(t){
+  const f=favs().has(t),c=sel.has(t);
+  return `<li class="row${t===now.track?' cur':''}" data-t="${esc(t)}">
+   ${selecting?`<input type="checkbox" class="ck" ${c?'checked':''}>`:''}
+   ${ART(t)?`<img loading="lazy" src="${D('/api/art/'+ART(t))}?s=96" alt="">`:'<div class="ph">🎵</div>'}
+   <div class="tx"><b>${esc(T(t))}</b><small>${esc(A(t))}${plays(t)}</small></div><span class="al">${esc(AL(t))}</span>
+   ${selecting?'':`<button class="heart ${f?'on':''}" title="Favorite">${f?'♥':'♡'}</button><button class="more" title="Add to playlist">＋</button>`}
+  </li>`;
+}
+const plays=t=>{const n=ctx.name==='Most Played'&&(lists.playCounts||{})[t];return n?' · '+n+(n>1?' plays':' play'):''};
+function selBar(scope,extra){
+  if(!selecting)return '';
+  const n=sel.size,all=scope.length&&scope.every(t=>sel.has(t)),af=n&&[...sel].every(t=>favs().has(t));
+  return `<div class="sel bar"><b>${n} selected</b><button data-a="all">${all?'Clear all':'Select all'}</button>
+   <button data-a="play" ${n?'':'disabled'}>▶ Play</button>
+   <button data-a="fav" ${n?'':'disabled'}>${af?'♡ Unfavorite':'♥ Favorite'}</button>
+   <button data-a="add" ${n?'':'disabled'}>＋ Add to playlist</button>
+   ${extra?`<button data-a="rm" ${n?'':'disabled'}>Remove</button>`:''}
+   <button data-a="cancel">Cancel</button></div>`;
+}
+function actions(count){
+  return `<div class="bar">${selecting?'':`<button class="ac" data-a="playall">▶ Play</button><button data-a="shuf">🔀 Shuffle</button><button data-a="select">Select</button>`}<span class="dim">${count} songs</span></div>`;
+}
+function trackList(tracks,opts={}){
+  return actions(tracks.length)+selBar(opts.scope||tracks,opts.remove)+`<ul>${tracks.map(trackRow).join('')}</ul>`;
+}
+
+let ctx={tracks:[],name:'',scope:[],remove:null};   // what the visible list plays / selects
+function render(){
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+  const v=$('view');
+  if(tab==='music')v.innerHTML=musicView();
+  else if(tab==='fav'){const t=[...lists.favorites].reverse();ctx={tracks:t,name:'Favorites',scope:t};
+    v.innerHTML='<h2>Favorites</h2>'+(t.length?trackList(t):'<p class="dim">No favorites yet. Tap ♡ on any song.</p>')}
+  else if(tab==='pl')v.innerHTML=openPl?plDetail():plList();
+  else v.innerHTML=devView();
+  const q=$('q');if(q&&query&&document.activeElement!==q){q.focus();q.setSelectionRange(query.length,query.length)}
+}
+function tree(){const d={subs:{},tracks:[],all:[]};
+  for(const t of lib){const parts=t.split('/');let n=d;n.all.push(t);for(let i=0;i<parts.length-1;i++){n=n.subs[parts[i]]??={subs:{},tracks:[],all:[]};n.all.push(t)}n.tracks.push(t)}return d}
+function subtree(path){let x=tree();for(const s of path.split('/'))x=x.subs[s]||{subs:{},tracks:[],all:[]};return x}
+function musicView(){
+  const q=query.trim().toLowerCase();
+  let h=`<div class="bar"><input id="q" type="search" placeholder="Search music  ( / )" value="${esc(query)}" style="flex:1"></div>`;
+  if(!loaded)return h+'<p class="dim">Loading…</p>';
+  if(loadErr)return h+`<p class="dim">Can't load this device's music: ${esc(loadErr)}</p>`;
+  if(q){const r=lib.filter(t=>t.toLowerCase().includes(q)||[T(t),A(t),AL(t)].some(x=>x.toLowerCase().includes(q))).slice(0,300);
+    ctx={tracks:r,name:'Search',scope:r};return h+(r.length?trackList(r):'<p class="dim">Nothing matches.</p>')}
+  const segs=dir?dir.split('/'):[];const n=dir?subtree(dir):tree();
+  h+=`<div class="crumb"><button data-dir="">Music</button>${segs.map((s,i)=>' › <button data-dir="'+esc(segs.slice(0,i+1).join('/'))+'">'+esc(s)+'</button>').join('')}</div>`;
+  ctx={tracks:n.tracks,name:segs[segs.length-1]||'Music',scope:n.all,whole:dir===''};
+  const folders=Object.keys(n.subs).sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  h+=n.all.length?actions(n.all.length)+selBar(n.all):'<p class="dim">No music found. Add a folder on the Devices tab.</p>';
+  h+='<ul>'+folders.map(f=>{const sub=n.subs[f],path=dir?dir+'/'+f:f,ck=selecting&&sub.all.length&&sub.all.every(t=>sel.has(t));
+    return `<li class="row" data-dir="${esc(path)}">${selecting?`<input type="checkbox" class="fck" ${ck?'checked':''}>`:''}<div class="ph">📁</div><div class="tx"><b>${esc(f)}</b></div><span class="dim">${sub.all.length}</span></li>`}).join('')
+    +n.tracks.map(trackRow).join('')+'</ul>';
+  return h;
+}
+function plList(){
+  const rows=(p,pad)=>`<li class="row" data-pl="${p.id}" ${pad?'style="padding-left:24px"':''}><div class="ph">☰</div><div class="tx"><b>${esc(p.name)}</b><small>${p.tracks.length} songs</small></div></li>`;
+  let h=`<div class="bar"><h2 style="flex:1;margin:0">Playlists</h2><button data-a="newfolder">＋ Folder</button><button class="ac" data-a="newpl">＋ Playlist</button></div><ul>
+   <li class="row" data-fav="1"><div class="ph">♥</div><div class="tx"><b>Favorites</b><small>${lists.favorites.length} songs</small></div></li>
+   <li class="row" data-most="1"><div class="ph">♫</div><div class="tx"><b>Most Played</b><small>${(lists.mostPlayed||[]).length} songs</small></div></li>`;
+  for(const f of lists.folders){h+=`<li class="row" style="cursor:default"><div class="ph">📁</div><div class="tx"><b>${esc(f)}</b></div>
+     <button data-a="newplin" data-f="${esc(f)}">＋</button><button data-a="renfolder" data-f="${esc(f)}">Rename</button><button data-a="delfolder" data-f="${esc(f)}">Delete</button></li>`;
+    h+=lists.playlists.filter(p=>p.folder===f).map(p=>rows(p,true)).join('')}
+  h+=lists.playlists.filter(p=>!p.folder||!lists.folders.includes(p.folder)).map(p=>rows(p,false)).join('');
+  return h+'</ul>';
+}
+function plDetail(){
+  if(openPl==='__most'){const t=lists.mostPlayed||[];ctx={tracks:t,name:'Most Played',scope:t};
+    return `<div class="bar"><button data-a="back">‹ Playlists</button><h2 style="flex:1;margin:0">Most Played</h2></div>`
+     +(t.length?trackList(t):'<p class="dim">Nothing yet. A song counts as played once you have listened to 30 seconds of it. The most played come first.</p>')}
+  const p=lists.playlists.find(x=>x.id===openPl);if(!p){openPl=null;return plList()}
+  ctx={tracks:p.tracks,name:p.name,scope:p.tracks,remove:p.id};
+  return `<div class="bar"><button data-a="back">‹ Playlists</button><h2 style="flex:1;margin:0">${esc(p.name)}</h2>
+   <button data-a="renpl">Rename</button><button data-a="movepl">Move</button><button data-a="delpl">Delete</button></div>`
+   +(p.tracks.length?trackList(p.tracks,{remove:true}):'<p class="dim">Empty. Use ＋ on any song to add it here.</p>');
+}
+function devLine(s){
+  if(!s)return 'Not reachable';
+  if(s.player&&s.player.playing)return '▶ Playing '+((s.now&&s.now.title)||'');
+  if(s.listeningTo&&!s.listeningTo.startsWith('127.'))return 'Listening to '+s.listeningTo.replace(/:\d+$/,'');
+  return 'Idle';
+}
+function cards(){
+  return devices().map(([ip,name,s])=>{
+    const a=s&&s.audio;
+    return `<div class="card${ip===dev?' cur':''}">
+     <div class="bar"><b style="flex:1">${esc(name)}${ip?` <span class="dim">${esc(ip)}</span>`:' <span class="dim">(this device)</span>'}</b>
+      ${ip===dev?'<span class="dim">Browsing and controlling</span>':`<button data-a="ctl" data-ip="${esc(ip)}">Browse and control</button>`}</div>
+     <div class="dim">${esc(devLine(s))}${a?` · in sync within ${Math.abs(a.syncErrMs).toFixed(1)} ms · ${a.underruns+a.resyncs} glitches`:''}</div>
+     ${s?`<label class="dim">Sync offset <input type="number" step="10" ${ip?`data-lat="${esc(ip)}"`:'id="lat"'} value="${s.latencyMs||0}" style="width:6em"> ms. + plays later, − earlier. Use it if this speaker sounds late or early (Bluetooth adds 100–250 ms).</label>`:''}
+    </div>`}).join('');
+}
+function renderCards(){const c=$('cards');if(c&&!c.contains(document.activeElement))c.innerHTML=cards()}
+function devView(){
+  const pin=(me.pinned||'').replace(/:\d+$/,'');
+  return `<div class="bar"><b style="font-size:20px">Devices</b></div>
+  <p class="dim">Every device on this Wi-Fi. Pick one to browse its music and control it; whatever plays there is heard on all of them, in sync.</p>
+  <div id="cards">${cards()}</div>
+  ${dev?'':`<h3>Listen to</h3><p class="dim">Automatic joins whichever device is playing.</p>
+  <label class="opt"><input type="radio" name="lis" data-listen="" ${pin?'':'checked'}> Automatic</label>
+  ${peers.map(p=>`<label class="opt"><input type="radio" name="lis" data-listen="${esc(p.IP)}" ${pin===p.IP?'checked':''}> ${esc(pname(p))} <span class="dim">${esc(p.IP)}${p.casting?' · playing now':''}</span></label>`).join('')}
+  <div class="bar"><input id="addr" type="text" placeholder="or type an address, e.g. 192.168.0.20"><button data-a="listenaddr">Listen</button></div>`}
+  <h3>Music folders${dev?' on that device':''}</h3><p class="dim">${lib.length} songs from ${sources.length} folder(s). Removing a folder only hides it from letsgo.</p>
+  ${sources.map(d=>`<div class="bar"><span style="flex:1;overflow-wrap:anywhere">📁 ${esc(d)}</span><button data-a="rmsrc" data-d="${esc(d)}">Remove</button></div>`).join('')}
+  <div class="bar"><input id="src" type="text" placeholder="/path/to/music" style="flex:1"><button data-a="addsrc">Add folder</button><button data-a="rescan">Rescan</button></div>`;
+}
+
+// ---- actions ----
+function chooseList(tracks,done){
+  const d=$('dlg');
+  d.innerHTML='<h3 style="margin-top:0">Add to playlist</h3><button data-p="__new">＋ New playlist…</button>'
+   +lists.playlists.map(p=>`<button data-p="${p.id}">${esc(p.name)} <span class="dim">(${p.tracks.length})</span></button>`).join('')+'<button data-p="">Cancel</button>';
+  d.onclick=async e=>{const id=e.target.closest('button')?.dataset.p;if(id===undefined)return;d.close();if(id==='')return;
+    try{if(id==='__new'){const n=prompt('Playlist name');if(!n)return;const r=await post(D('/api/playlist'),{name:n});await post(D('/api/playlist/add'),{id:r.id,tracks})}
+    else await post(D('/api/playlist/add'),{id,tracks});await loadLists();done&&done()}catch(x){fail(x)}};
+  d.showModal();
+}
+const ordered=()=>lib.filter(t=>sel.has(t));
+function playCtx(shuffle){
+  if(!ctx.tracks.length&&!ctx.scope.length)return;
+  // in the music browser "Play" means everything under the folder (whole library at the top)
+  const tracks=tab==='music'&&!query.trim()?(ctx.whole?null:ctx.scope):ctx.tracks;
+  const n=tracks?tracks.length:lib.length;
+  post(D('/api/shuffle?on='+(shuffle?1:0))).then(()=>play(tracks,shuffle?Math.floor(Math.random()*n):0,ctx.name)).then(tick).catch(fail);
+}
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button'),li=e.target.closest('li.row');
+  try{
+    if(e.target.classList.contains('ck')||e.target.classList.contains('fck')){
+      if(e.target.classList.contains('fck')){const x=subtree(li.dataset.dir),all=x.all.every(t=>sel.has(t));x.all.forEach(t=>all?sel.delete(t):sel.add(t))}
+      else{const t=li.dataset.t;sel.has(t)?sel.delete(t):sel.add(t)}
+      return render()}
+    if(b&&b.dataset.dir!==undefined){dir=b.dataset.dir;return render()}
+    if(b&&b.classList.contains('heart')){const t=li.dataset.t;await post(D('/api/fav'),{track:t,on:!favs().has(t)});return loadLists()}
+    if(b&&b.classList.contains('more'))return chooseList([li.dataset.t]);
+    if(b&&b.dataset.a){const a=b.dataset.a,p=lists.playlists.find(x=>x.id===openPl);switch(a){
+      case 'playall':return playCtx(false);case 'shuf':return playCtx(true);
+      case 'select':selecting=true;return render();case 'cancel':clearSel();return render();
+      case 'all':{const s=ctx.scope||[];s.every(t=>sel.has(t))?s.forEach(t=>sel.delete(t)):s.forEach(t=>sel.add(t));return render()}
+      case 'play':await play(ordered(),0,'Selection');clearSel();render();return tick();
+      case 'fav':{const t=ordered(),on=!t.every(x=>favs().has(x));await post(D('/api/fav'),{tracks:t,on});clearSel();return loadLists()}
+      case 'add':return chooseList(ordered(),()=>{clearSel();render()});
+      case 'rm':await post(D('/api/playlist/remove'),{id:openPl,tracks:ordered()});clearSel();return loadLists();
+      case 'newpl':{const n=prompt('Playlist name');if(n){await post(D('/api/playlist'),{name:n});loadLists()}return}
+      case 'newplin':{const n=prompt('Playlist name');if(n){await post(D('/api/playlist'),{name:n,folder:b.dataset.f});loadLists()}return}
+      case 'newfolder':{const n=prompt('Folder name');if(n){await post(D('/api/folder'),{name:n});loadLists()}return}
+      case 'renfolder':{const n=prompt('New name',b.dataset.f);if(n){await post(D('/api/folder/rename'),{name:b.dataset.f,to:n});loadLists()}return}
+      case 'delfolder':if(confirm('Delete folder "'+b.dataset.f+'"? Playlists inside move to the top level.')){await post(D('/api/folder/delete'),{name:b.dataset.f});loadLists()}return;
+      case 'back':openPl=null;clearSel();return render();
+      case 'renpl':{const n=prompt('Rename playlist',p.name);if(n){await post(D('/api/playlist/update'),{id:p.id,name:n});loadLists()}return}
+      case 'movepl':{const n=prompt('Folder (blank = top level)\nExisting: '+lists.folders.join(', '),p.folder);if(n!==null){await post(D('/api/playlist/update'),{id:p.id,folder:n});loadLists()}return}
+      case 'delpl':if(confirm('Delete playlist "'+p.name+'"?')){await post(D('/api/playlist/delete'),{id:p.id});openPl=null;loadLists()}return;
+      case 'ctl':return setDev(b.dataset.ip);
+      case 'listenaddr':{const a=$('addr').value.trim();if(a){await post('/api/listen',{addr:a});tick()}return}
+      case 'addsrc':{const d=$('src').value.trim();if(d){const r=await post(D('/api/sources'),{add:d});sources=r.dirs;await loadLib()}return}
+      case 'rmsrc':{const r=await post(D('/api/sources'),{remove:b.dataset.d});sources=r.dirs;await loadLib();return}
+      case 'rescan':await post(D('/api/rescan'));return loadLib()}}
+    if(b)return;
+    if(li&&li.dataset.dir!==undefined){if(selecting){const x=subtree(li.dataset.dir),all=x.all.every(t=>sel.has(t));x.all.forEach(t=>all?sel.delete(t):sel.add(t));return render()}dir=li.dataset.dir;return render()}
+    if(li&&li.dataset.most){openPl='__most';return render()}
+    if(li&&li.dataset.pl){openPl=li.dataset.pl;return render()}
+    if(li&&li.dataset.fav){tab='fav';return render()}
+    if(li&&li.dataset.t){const t=li.dataset.t;if(selecting){sel.has(t)?sel.delete(t):sel.add(t);return render()}
+      document.querySelectorAll('.row[data-t]').forEach(r=>r.classList.toggle('cur',r.dataset.t===t));$('bt').textContent='⏸';
+      await play(ctx.tracks,ctx.tracks.indexOf(t),ctx.name);return tick()}
+  }catch(x){fail(x)}
+});
+document.addEventListener('input',e=>{if(e.target.id==='q'){query=e.target.value;render()}});
+document.addEventListener('change',async e=>{
+  try{
+    if(e.target.dataset&&e.target.dataset.listen!==undefined){await post('/api/listen',{addr:e.target.dataset.listen});tick()}
+    if(e.target.id==='lat'){await post('/api/latency?ms='+(e.target.value||0));tick()}
+    if(e.target.dataset&&e.target.dataset.lat){await post(at(e.target.dataset.lat,'/api/latency?ms='+(e.target.value||0)));loadDevStates()}
+  }catch(x){fail(x)}
+});
+addEventListener('resize',fixSticky);
+loadLib();loadLists();tick();loadPeers();setInterval(tick,1000);setInterval(loadPeers,8000);setInterval(()=>{if(tab==='dev')loadDevStates()},3000);setInterval(()=>{if(tab==='pl'&&!selecting)loadLists()},10000);
+</script></body></html>

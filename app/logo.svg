@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <title>letsgo</title>
+  <rect width="108" height="108" rx="24" fill="#0b1410"/>
+  <g fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34,38 L34,70 L56,54 Z" fill="#4ade80"/>
+    <path d="M64.89,48.21 A9,9 0 0 1 64.89,59.79"/>
+    <path d="M71.02,43.07 A17,17 0 0 1 71.02,64.93" opacity=".75"/>
+    <path d="M77.15,37.93 A25,25 0 0 1 77.15,70.07" opacity=".5"/>
+  </g>
+</svg>
