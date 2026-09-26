@@ -150,7 +150,7 @@ func Start(musicDirs []string, dataDir, snapAddr, httpAddr, instance string, buf
 		srv.Close()
 		return nil, err
 	}
-	n.httpSrv = &http.Server{Handler: n.mux()}
+	n.httpSrv = &http.Server{Handler: guard(n.mux())}
 	go n.httpSrv.Serve(ln)
 
 	_, portStr, _ := net.SplitHostPort(snapAddr)

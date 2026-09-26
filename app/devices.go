@@ -37,6 +37,8 @@ func (n *Node) devRoutes(mux *http.ServeMux) {
 				pr.Out.URL.Scheme, pr.Out.URL.Host = "http", host
 				pr.Out.URL.Path, pr.Out.URL.RawPath = "/api/"+r.PathValue("path"), ""
 				pr.Out.Host = host
+				pr.Out.Header.Del("Origin") // the page's origin means nothing to the other device, which would refuse it
+				pr.Out.Header.Del("Referer")
 			},
 			ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
 				http.Error(w, "device unreachable", http.StatusBadGateway)
