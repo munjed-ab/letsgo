@@ -1,0 +1,31 @@
+# Build output (regenerate with ./build.sh)
+/dist/
+/android-app/build/
+/android-app/app/build/
+/android-app/.gradle/
+/android-app/.kotlin/
+# gomobile output: built from ./mobile by build.sh
+/android-app/app/libs/*.aar
+/android-app/app/libs/*-sources.jar
+*.apk
+*.aab
+
+# Machine-specific: Android Studio / Gradle write your SDK path here
+local.properties
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+*~
+*.swp
+
+# Runtime data and scratch files: never commit these (music, playlists, logs, browser profiles)
+*.log
+*.pid
+*.tmp
+/lists.json
+/plays.json
+/sources.json
+/meta.json
