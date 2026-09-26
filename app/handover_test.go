@@ -33,7 +33,8 @@ func TestAutomaticHandOver(t *testing.T) {
 	}
 	defer b.Stop()
 	// no mDNS in tests: tell each node about the other, and where the other's API is
-	a.peerPort, b.peerPort = port(bHTTP), port(aHTTP)
+	a.setPeerPort(port(bHTTP))
+	b.setPeerPort(port(aHTTP))
 	ap, _ := strconv.Atoi(port(aSnap))
 	bp, _ := strconv.Atoi(port(bSnap))
 	a.setPeers(snap.Peer{Name: "laptop", IP: "127.0.0.1", Port: bp})

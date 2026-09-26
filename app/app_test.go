@@ -398,9 +398,7 @@ func TestNowMetaArtAndRemoteControl(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Stop()
-	old := peerHTTPPort
-	peerHTTPPort = port(aHTTP) // the laptop reaches the phone's API on its test port
-	defer func() { peerHTTPPort = old }()
+	b.setPeerPort(port(aHTTP)) // the laptop reaches the phone's API on its test port
 	b.Pin(aSnap)
 
 	get := func(addr, path string, out any) int {
@@ -524,9 +522,7 @@ func TestFreshDeviceFollowsPausedPeer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Stop()
-	old := peerHTTPPort
-	peerHTTPPort = port(aHTTP)
-	defer func() { peerHTTPPort = old }()
+	b.setPeerPort(port(aHTTP))
 	b.Pin(aSnap)
 
 	if n := b.Now(); n.Track != "" || n.Remote {

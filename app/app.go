@@ -61,7 +61,7 @@ type Node struct {
 	snapPort int
 	pinned   string        // if set, the source to listen to when we are not casting (skips discovery)
 	kick     chan struct{} // wakes the supervisor now: something just started playing here
-	peerPort string        // other devices' API port; "" = peerHTTPPort (tests run several nodes on one machine)
+	peerPort string        // other devices' API port; "" = peerHTTPPort (guarded by mu)
 
 	mu        sync.Mutex
 	client    *snap.Client
@@ -370,10 +370,20 @@ func (n *Node) peerCasting(addr string) bool {
 
 // peerPortStr is the API port of other devices.
 func (n *Node) peerPortStr() string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if n.peerPort != "" {
 		return n.peerPort
 	}
 	return peerHTTPPort
+}
+
+// setPeerPort overrides the API port of other devices for this node only. Tests use it to run
+// several nodes on one machine (nothing writes the package-level default while nodes are running).
+func (n *Node) setPeerPort(p string) {
+	n.mu.Lock()
+	n.peerPort = p
+	n.mu.Unlock()
 }
 
 // discover keeps the list of peers fresh in the background. A scan takes over a second and

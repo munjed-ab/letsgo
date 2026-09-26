@@ -25,9 +25,7 @@ func TestDeviceProxy(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Stop()
-	old := peerHTTPPort
-	peerHTTPPort = port(aHTTP)
-	defer func() { peerHTTPPort = old }()
+	b.setPeerPort(port(aHTTP)) // the laptop reaches the phone's API on its test port
 
 	do := func(method, addr, path, body string) (int, string) {
 		req, _ := http.NewRequest(method, "http://"+addr+path, strings.NewReader(body))
