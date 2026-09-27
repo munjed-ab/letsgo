@@ -30,7 +30,6 @@ device that is just listening does not need the music.
   network can control your devices and listen to the stream. Do not run it on public or shared Wi-Fi.
   [What is and is not protected](docs/privacy-and-security.md).
 - The Android APK is signed with the debug key so it installs easily. It is not a store release.
-- Much of the code was written with an AI coding assistant; see [How this project is made](#how-this-project-is-made).
 - There are no prebuilt downloads yet: you build it (one command, below).
 
 ## Requirements
