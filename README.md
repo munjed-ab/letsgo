@@ -45,7 +45,7 @@ device that is just listening does not need the music.
 ## Get it running
 
 ```sh
-git clone <this repository> && cd letsgo
+git clone https://github.com/munjed-ab/letsgo.git && cd letsgo
 ./build.sh                    # tests, then dist/: letsgo.apk, desktop, play, letsgo-linux-amd64, letsgo-android-arm64
 SKIP_TESTS=1 ./build.sh       # the same without the tests (they take a few minutes)
 ```
