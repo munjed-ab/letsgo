@@ -229,13 +229,6 @@ that come from a web page on another site are refused).
   the old, slower behaviour.
 - No automated builds or releases yet, and no continuous integration.
 
-## How this project is made
-
-Much of the code was written by the maintainer working with an AI coding assistant, Claude Code (Anthropic).
-Those commits carry a `Co-Authored-By` line. The behaviour described here is backed by tests that run over
-real sockets and in real time, and the documentation was checked against the code, but the project has had
-little use beyond its author's own devices. Treat it accordingly and report what you find.
-
 ## Contributing, licence
 
 [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) · [MIT licence](LICENSE) ·
