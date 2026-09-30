@@ -4,8 +4,24 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 )
+
+// The app window runs in a profile called "letsgo": that name is what makes its window identity
+// (chrome-localhost__-letsgo on Wayland) ours, and install-desktop.sh's StartupWMClass has to match it.
+// On Wayland it also uses software compositing, without which Chrome leaves full screen after 1.5 s.
+func TestWindowArgs(t *testing.T) {
+	got := windowArgs("http://localhost:8080", "/home/x/.config/letsgo/chrome", true)
+	for _, want := range []string{"--app=http://localhost:8080", "--class=letsgo", "--profile-directory=letsgo", "--user-data-dir=/home/x/.config/letsgo/chrome", "--disable-gpu-compositing"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("windowArgs = %v, missing %s", got, want)
+		}
+	}
+	if x11 := windowArgs("http://localhost:8080", "", false); slices.Contains(x11, "--disable-gpu-compositing") || slices.Contains(x11, "--profile-directory=letsgo") {
+		t.Errorf("no Wayland and no profile folder: neither the compositing flag nor our profile belongs here: %v", x11)
+	}
+}
 
 func TestLocalURL(t *testing.T) {
 	for in, want := range map[string]string{

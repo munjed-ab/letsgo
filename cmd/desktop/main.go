@@ -185,12 +185,41 @@ func hostname() string {
 	return "letsgo-desktop"
 }
 
+// windowArgs are the browser flags of the app window.
+//
+// Identity: letsgo runs it in a profile of its own, named "letsgo", kept in profileDir: apart from your
+// browsing, and with a window identity that is only ours. On Wayland Chrome builds the identity (the
+// app-id) from the address and the profile name, so it is "chrome-localhost__-letsgo" instead of
+// "chrome-localhost__-Default", which every other app window on localhost would share; on X11 --class
+// sets it to "letsgo". install-desktop.sh names the one that applies in the launcher (StartupWMClass),
+// and the dock then shows "letsgo" with its logo.
+//
+// Wayland: Chrome's GPU compositing path makes it drop out of full screen 1.5 s after entering it (seen
+// on COSMIC with Chrome 154 and an Intel + NVIDIA laptop, for any web page, not only ours; the browser
+// itself asks the compositor to leave). Software compositing avoids it and leaves video decoding
+// alone, so it is used on Wayland only.
+func windowArgs(url, profileDir string, wayland bool) []string {
+	args := []string{"--app=" + url, "--window-size=1120,740", "--class=letsgo"}
+	if profileDir != "" {
+		args = append(args, "--user-data-dir="+profileDir, "--profile-directory=letsgo", "--no-first-run", "--no-default-browser-check")
+	}
+	if wayland {
+		args = append(args, "--disable-gpu-compositing")
+	}
+	return args
+}
+
 // openWindow opens the UI as a chromeless app window if a Chrome-family browser
 // is around, else falls back to the default browser.
 func openWindow(url string) {
+	profile := ""
+	if d := dataDir(); d != "" {
+		profile = filepath.Join(d, "chrome")
+	}
+	wayland := os.Getenv("XDG_SESSION_TYPE") == "wayland" || os.Getenv("WAYLAND_DISPLAY") != ""
 	for _, b := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "brave-browser", "microsoft-edge"} {
 		if path, err := exec.LookPath(b); err == nil {
-			exec.Command(path, "--app="+url, "--window-size=1120,740").Start()
+			exec.Command(path, windowArgs(url, profile, wayland)...).Start()
 			return
 		}
 	}

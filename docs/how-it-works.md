@@ -17,8 +17,9 @@ A *node* is one running letsgo. It is three things at once:
  phone / laptop / browser ─► HTTP API + web UI :8080 ─► player, lists, supervisor
 ```
 
-- **player** (`player/`) decodes mp3, flac, ogg and wav, resamples to one stream format
-  (44.1 kHz, 16-bit, stereo) and cuts it into 20 ms chunks, each stamped with the server clock.
+- **player** (`player/`) decodes mp3, flac, ogg and wav (and the sound of videos, see below), resamples
+  to one stream format (44.1 kHz, 16-bit, stereo) and cuts it into 20 ms chunks, each stamped with the
+  server clock.
 - **snap server** (`snap/server.go`) sends every chunk to every connected listener. A slow
   listener only loses its own chunks; it can never hold up the others.
 - **client** (`snap/client.go`) keeps a jitter buffer, keeps its clock in step with the server's and
@@ -136,6 +137,41 @@ Measured on two nodes on one machine, the follower is audible about 330 ms after
 - **Most Played.** A track counts as played after 30 s of it has been produced (or half of it if it
   is shorter than a minute). Seeking does not add to it; playing it again does.
 
+## Videos
+
+A video is a song with a picture: the same queue, the same stream, the same controls. Only the sound
+goes through the player and out to every device; the picture never enters the stream.
+
+- **Which files.** `mp4`, `m4v`, `mov`, `mkv` and `webm` (`player.VideoExts`), by extension. They are
+  in the library only when this device can decode their sound (`player.VideoSupported`), so a track that
+  could not play is never listed. A file with no audio track fails to open and is skipped like any broken file.
+- **The sound.** The pure-Go decoders cannot read AAC in an MP4, so the platform does it. A laptop runs
+  one `ffmpeg` per play position (`player/video.go`): it writes raw 44.1 kHz stereo to a pipe, and a
+  seek starts a new process at the new position. The phone registers `VideoAudio.kt` (MediaExtractor
+  and MediaCodec) through `mobile.SetVideoDecoder` before the node starts; it decodes one block ahead
+  when a file is opened, because HE-AAC only reveals its true sample rate once it has produced sound,
+  and folds 5.1 down to stereo. Either way the player sees an ordinary source.
+- **The picture.** `GET /api/video?t=<track>` serves the file itself, with `Range` support, but only
+  for library tracks that are videos. A screen that shows the picture takes it from the device that is
+  playing (its own node, or the source it hears; the web page goes through `/dev/<ip>/`) and plays it
+  muted. It never opens by itself.
+- **Keeping the picture in step.** The node reports the position being *heard* (`Now.Elapsed`); for a
+  device that hears another one that answer can be up to a second old, so the node moves it on by its
+  age before handing it out. The screen aims at that position minus its own sync offset (its speakers
+  are that late), and: the web page seeks when it is 0.4 s off (0.05 s while paused) and otherwise
+  nudges the playback rate by up to 10 % to close the gap in about two seconds, checked once a second;
+  the phone seeks when it is 0.35 s off (0.1 s while paused), checked every 300 ms. Measured in Chrome
+  against a running node the picture stayed within 30 ms of the reported position, through a seek and
+  a pause.
+- **Full screen.** On the web page it is the browser's Fullscreen API on the video box alone (the keys
+  and a click on the picture still drive playback); only closing the video view or leaving full screen
+  yourself ends it. On the phone it is an overlay (`VideoFullScreen` in `VideoPane.kt`) that hides the
+  system bars and asks for landscape when the video is wider than tall, portrait otherwise, then restores
+  both. A tap shows or hides the controls over the picture (title, exit, timeline, previous, play/pause,
+  next); they hide after 3.5 s while playing. A song in the queue does not end full screen: the box shows
+  its cover, and the next video fills it again. The phone's picture is a new player on the same URL, so it
+  takes a moment to come back after entering or leaving.
+
 ## Files a node writes
 
 | File (desktop: `~/.config/letsgo/`, phone: the app's private storage) | Content |
@@ -145,8 +181,9 @@ Measured on two nodes on one machine, the follower is audible about 330 ms after
 | `sources.json` | music folders you chose (until you change them, the defaults apply) |
 | `meta.json` | cached tags and cover-art hashes per track |
 
-The desktop also writes `~/.cache/letsgo/art/` (cover art for the media widget) and
-`~/.cache/letsgo/letsgo.log`. Each file is written atomically (temporary file, then rename). If
+The desktop also writes `~/.cache/letsgo/art/` (cover art for the media widget),
+`~/.cache/letsgo/letsgo.log`, and `~/.config/letsgo/chrome/` (the browser profile of its app window: cache
+and settings of that window only, nothing of yours; safe to delete). Each file is written atomically (temporary file, then rename). If
 `lists.json` cannot be parsed it is kept as `lists.json.bad` instead of being overwritten, so nothing
 you made is lost silently. The other files simply start again (`meta.json` is only a cache;
 `plays.json` would restart from zero, `sources.json` from the defaults).
@@ -168,3 +205,5 @@ you made is lost silently. The other files simply start again (`meta.json` is on
 | Per-listener queue | 256 chunks | `snap/server.go` |
 | Server write deadline / read deadline | 3 s / 15 s | `snap/server.go` |
 | Supervisor tick, mDNS scan, peer lifetime | 400 ms, 4 s, 15 s | `app/app.go` |
+| Video picture: jump when off by (playing / paused) | web 0.4 s / 0.05 s, phone 0.35 s / 0.1 s | `app/index.html`, `VideoPane.kt` |
+| Video picture: catch-up rate limit (web only) | ±10 % | `app/index.html` |

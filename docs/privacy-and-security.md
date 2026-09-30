@@ -17,7 +17,7 @@ anywhere. Only the audio you are playing moves, from the playing device to the d
 
 | Where | What |
 |---|---|
-| Desktop `~/.config/letsgo/` | `lists.json` (favourites, playlists), `plays.json` (play counts), `sources.json` (music folders), `meta.json` (cached song titles, artists, albums, cover-art hashes) |
+| Desktop `~/.config/letsgo/` | `lists.json` (favourites, playlists), `plays.json` (play counts), `sources.json` (music folders), `meta.json` (cached song titles, artists, albums, cover-art hashes), `chrome/` (the browser profile of the app window: its cache, no logins) |
 | Desktop `~/.cache/letsgo/` | `art/` (cover art for the media widget), `letsgo.log` |
 | Phone | the same files in the app's private storage, which other apps cannot read |
 
@@ -72,13 +72,15 @@ can:
 
 - control it: play, pause, skip, change the volume and the sync offset, make it follow them (Shift)
   or listen to another device;
-- read your library's file names, tags and cover art (`/api/library`, `/api/meta`, `/api/art`);
+- read your library's file names, tags and cover art (`/api/library`, `/api/meta`, `/api/art`), and
+  **download the video files in it** (`/api/video`, the file itself, not just its sound);
 - **add any folder on that device as a music folder** (`POST /api/sources`). The node then indexes and
-  serves every audio file under it, so a stranger on the network could list and stream audio files
-  from anywhere the app can read;
+  serves every audio and video file under it, so a stranger on the network could list and stream audio
+  files, and download video files, from anywhere the app can read;
 - join the audio stream on port 1704 and record what is playing. The stream is not encrypted.
 
-They cannot read or write arbitrary files, and playing only works for tracks in the library. This is
+They cannot read or write arbitrary files: playing, and `/api/video`, only work for tracks in the
+library, and `/api/video` only hands out video files. This is
 by design for a home network: there is no pairing step to get wrong. It is **not safe on a public or
 shared Wi-Fi** (café, hotel, campus, guest network). Do not run letsgo there, or block ports 1704 and
 8080 with a firewall.

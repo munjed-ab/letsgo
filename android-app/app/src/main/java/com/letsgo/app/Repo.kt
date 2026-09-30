@@ -3,6 +3,7 @@ package com.letsgo.app
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import android.os.SystemClock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -41,6 +42,9 @@ data class Now(
     val remote: Boolean = false,
     val source: String = "",
 )
+
+/** Whether a track is a video file (its sound plays like a song's, and its picture can be shown). */
+fun isVideo(track: String) = track.substringAfterLast('/').substringAfterLast('.', "").lowercase() in setOf("mp4", "m4v", "mov", "mkv", "webm")
 
 data class TrackMeta(val title: String, val artist: String, val album: String, val art: String)
 
@@ -124,6 +128,9 @@ class Repo(private val scope: CoroutineScope) {
     var online by mutableStateOf(false); private set
     var player by mutableStateOf(PlayerState()); private set
     var now by mutableStateOf(Now()); private set
+    var nowAt = 0L; private set // SystemClock.elapsedRealtime() at which now.elapsed was true
+    var videoOn by mutableStateOf(false) // show the picture of a video that is playing (off until asked for)
+    var videoFull by mutableStateOf(false) // ...and it fills the screen
     var currentTrack by mutableStateOf(""); private set // separate so track rows don't recompose every second
     var lists by mutableStateOf(Lists()); private set
     var library by mutableStateOf<List<String>>(emptyList()); private set
@@ -156,6 +163,11 @@ class Repo(private val scope: CoroutineScope) {
     /** Where cover art for [now] lives: this phone, or the device it is playing on. */
     val nowArtBase: String get() = if (now.remote && now.source.isNotEmpty()) "http://${now.source}" else LOCAL
 
+    private fun setNow(n: Now, at: Long = SystemClock.elapsedRealtime()) {
+        now = n
+        nowAt = at
+    }
+
     suspend fun pollLoop() {
         var n = 0
         while (true) {
@@ -169,14 +181,16 @@ class Repo(private val scope: CoroutineScope) {
 
     private suspend fun refresh() {
         try {
+            val t0 = SystemClock.elapsedRealtime()
             val j = withContext(Dispatchers.IO) { JSONObject(Http.request("GET", "$LOCAL/api/state")) }
+            val at = (t0 + SystemClock.elapsedRealtime()) / 2 // the answer was true about halfway through the request
             val p = j.getJSONObject("player")
             player = PlayerState(
                 p.getBoolean("playing"), p.getString("track"), p.getDouble("elapsed"),
                 p.getBoolean("shuffle"), p.getInt("count"), p.optString("context"),
             )
             if (currentTrack != player.track) currentTrack = player.track
-            j.optJSONObject("now")?.let { now = parseNow(it) }
+            j.optJSONObject("now")?.let { setNow(parseNow(it), at) }
             volume = j.getInt("volume")
             latencyMs = j.optInt("latencyMs")
             listeningTo = j.optString("listeningTo")
@@ -279,10 +293,10 @@ class Repo(private val scope: CoroutineScope) {
         // show it now; the next poll confirms
         (tracks?.getOrNull(index) ?: library.getOrNull(index))?.let { t ->
             currentTrack = t
-            now = now.copy(
+            setNow(now.copy(
                 track = t, title = titleOf(t), artist = meta[t]?.artist ?: "", art = artOf(t),
                 playing = true, elapsed = 0.0, remote = false, source = "",
-            )
+            ))
         }
         cmd("/api/queue", b)
     }
@@ -291,7 +305,7 @@ class Repo(private val scope: CoroutineScope) {
     private fun control(command: String, arg: Double = 0.0) = cmd("/api/control?cmd=$command&t=$arg")
 
     fun toggle() {
-        now = now.copy(playing = !now.playing) // show it now; the next poll confirms
+        setNow(now.copy(playing = !now.playing)) // show it now; the next poll confirms
         control("toggle")
     }
 
@@ -299,7 +313,7 @@ class Repo(private val scope: CoroutineScope) {
     fun prev() = control("prev")
 
     fun seek(seconds: Double) {
-        now = now.copy(elapsed = seconds)
+        setNow(now.copy(elapsed = seconds))
         control("seek", seconds)
     }
 

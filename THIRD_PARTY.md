@@ -43,11 +43,20 @@ All of these are Apache-2.0 (Google, JetBrains):
 
 The release build shrinks these to what the app uses.
 
+## Programs used but not shipped
+
+- **ffmpeg**, on laptops: if it is installed, letsgo runs it as a separate program to decode the sound
+  of video files. It is not bundled, linked or downloaded by letsgo, and nothing changes without it
+  except that video files are not listed.
+- **Android's media codecs** (MediaExtractor, MediaCodec, MediaPlayer), part of the operating system: the
+  phone uses them for the sound and the picture of videos.
+
 ## Not from a third party
 
 - **Snapcast.** letsgo speaks the Snapcast wire protocol so that stock Snapcast clients can connect. It is
   an independent implementation written from the protocol, and is not affiliated with the Snapcast
   project.
-- **Test audio** in `player/testdata` and `meta/testdata` is synthetic (tones and sweeps made with ffmpeg).
+- **Test audio** in `player/testdata` and `meta/testdata` is synthetic (tones and sweeps made with ffmpeg;
+  `sweep44100.mp4` is the same sweep with a plain blue picture).
 - **The logo and launcher icons** (`app/logo.svg`, `app/logo.png`, `android-app/app/src/main/res`) were
   made for this project. No third-party artwork or fonts are used.

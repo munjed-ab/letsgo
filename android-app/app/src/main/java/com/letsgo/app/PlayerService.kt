@@ -90,6 +90,7 @@ class PlayerService : Service() {
         val musicDir = File(Environment.getExternalStorageDirectory(), "Music").absolutePath
         val name = Build.MODEL ?: "phone"
         try {
+            Mobile.setVideoDecoder(VideoAudio()) // before start: the library is scanned there, and videos are listed only if they can be decoded
             Mobile.start(musicDir, filesDir.absolutePath, name, 1000L)
             Log.i(tag, "node started, music=$musicDir name=$name")
         } catch (e: Exception) {

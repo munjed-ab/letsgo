@@ -211,6 +211,7 @@ func (p *Player) Rescan() {
 	abs := map[string]string{}
 	var lib []string
 	labels := map[string]bool{}
+	video := VideoSupported()
 	for i, root := range roots {
 		prefix := ""
 		if i > 0 {
@@ -225,7 +226,7 @@ func (p *Player) Rescan() {
 			if err != nil {
 				return nil
 			}
-			if !d.IsDir() && Exts[strings.ToLower(filepath.Ext(path))] {
+			if !d.IsDir() && (Exts[strings.ToLower(filepath.Ext(path))] || video && IsVideo(path)) {
 				rel, _ := filepath.Rel(root, path)
 				id := prefix + filepath.ToSlash(rel)
 				if _, dup := abs[id]; dup {
@@ -247,6 +248,15 @@ func (p *Player) Rescan() {
 	p.idx = min(p.idx, max(0, len(p.queue)-1))
 	p.mu.Unlock()
 	log.Printf("library: %d tracks in %d folder(s)", len(lib), len(roots))
+}
+
+// VideoFile returns the file of a library track that is a video, for the app to serve.
+// An id that is not in the library gets nothing, so a caller cannot ask for arbitrary files.
+func (p *Player) VideoFile(id string) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	path, ok := p.abs[id]
+	return path, ok && IsVideo(path)
 }
 
 func (p *Player) Library() []string {

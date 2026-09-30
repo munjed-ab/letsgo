@@ -21,6 +21,18 @@ first one pauses and follows.
 Your files stay where they are. Only the audio stream moves between devices, so a
 device that is just listening does not need the music.
 
+**Videos** are songs with a picture. A music video (mp4, m4v, mov, mkv, webm) in a music folder is
+listed with your songs and marked with a video icon; its sound plays on every device like any song.
+Press the video button in the player (the camera icon on the phone, 🎬 on the laptop) to see the
+picture on that screen. It stays closed until you ask, and each screen shows it on its own, muted and
+in step with the sound. Each has a full screen mode: the ⛶ button, the `f` key or a double-click on the
+laptop (Esc leaves it), the corner button on the phone (it turns to the video's shape and hides the
+system bars; Back leaves it). On the laptop a click on the picture plays or pauses. On the phone a tap
+shows or hides the controls that lie over the video (previous, play/pause, next, the timeline), so you can
+navigate without leaving it; they hide themselves after a few seconds. Full screen is only ever left by
+you: when a song comes up in a queue of videos and songs it shows the song's cover, and the next video
+is full screen again.
+
 ## Status: read this first
 
 - It has been used on one Android 14 phone (arm64) and one Linux laptop. That is all it has been
@@ -36,7 +48,7 @@ device that is just listening does not need the music.
 | | |
 |---|---|
 | **Phone** | Android 7 or newer, **64-bit ARM (arm64)**. Nearly every phone since 2017; not 32-bit or x86 devices or emulators |
-| **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run |
+| **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run. **`ffmpeg`** on the PATH if you want videos: it decodes their sound (without it video files are not listed) |
 | **Network** | all devices on the same Wi-Fi/LAN, able to reach each other. TCP 1704 and 8080, UDP 5353 (mDNS) |
 | **To build** | Go 1.26+. For the APK also gomobile, JDK 17, Android SDK 34 + NDK 27, Gradle 8.9 ([details](docs/troubleshooting.md#building-from-source)) |
 
@@ -59,8 +71,11 @@ adb install -r dist/letsgo.apk      # if the phone is plugged in
 
 **Laptop (Linux):** `./dist/desktop` opens the desktop app and plays through your speakers. Media keys and
 the desktop's media widget work (MPRIS). Run it again and it just brings up the window, or, if you rebuilt,
-replaces the running copy. `./install-desktop.sh` adds letsgo to the applications menu. Its log is
-`~/.cache/letsgo/letsgo.log`.
+replaces the running copy. `./install-desktop.sh` adds letsgo to the applications menu and ties the
+window to that entry, so the dock shows "letsgo" with its logo (run it again after a rebuild only if you
+moved the folder). The window is a Chrome app window in a profile of its own (`~/.config/letsgo/chrome`),
+apart from your browsing; a window that is still open when the app restarts reloads itself to the new
+build. Its log is `~/.cache/letsgo/letsgo.log`.
 
 **Another phone or laptop:** install the same app on the same Wi-Fi. It finds the others by itself and shows
 up in everyone's **Devices** tab under its own name. If a network blocks discovery (some routers isolate
@@ -168,7 +183,7 @@ export GRADLE=/path/to/gradle-8.9/bin/gradle      # if `gradle` is not on PATH
 ```
 
 The tests cover the sync engine in virtual time (drift, jitter, pauses, stalls), the real client and server
-over TCP, seeking in every audio format, tags and cover art, playlists, the HTTP API and its web-page guard,
+over TCP, seeking in every audio format and in a video's sound (needs `ffmpeg`), tags and cover art, playlists, the HTTP API and its web-page guard,
 two nodes handing the music over to each other (Shift), MPRIS over the real D-Bus session bus, and the web UI
 in headless Chrome (if `node` and `google-chrome` are installed). They never touch your network: they run with
 discovery switched off. The `speaker` test plays 10 seconds of *silence* on your sound card and the `mpris`
@@ -190,6 +205,7 @@ that come from a web page on another site are refused).
 | `POST /api/queue {tracks?,index,context}` | play a list (no `tracks` = whole library) |
 | `POST /api/seek?t=SEC` `/api/shuffle?on=` `/api/volume?v=` `/api/latency?ms=` | |
 | `GET /api/library` `/api/meta` `/api/art/{hash}?s=PX` | tracks, tags, cover art |
+| `GET /api/video?t=TRACK` | the file of a video track (with `Range`); screens show it muted, in step with the sound |
 | `GET /api/lists` (also `mostPlayed`, `playCounts`) · `POST /api/fav` `/api/playlist[/update\|delete\|add\|remove]` `/api/folder[/rename\|delete]` | favourites, playlists, folders |
 | `GET/POST /api/sources {add\|remove}` | music folders |
 | `GET /api/peers` · `POST /api/listen {addr}` | other devices; choose one to listen to |
@@ -201,12 +217,12 @@ that come from a web page on another site are refused).
 | | |
 |---|---|
 | `snap/` | the sync protocol (Snapcast wire format), server, and the client's playout engine |
-| `player/` | decoders (mp3, flac, ogg, wav) with seeking, resampler, the timestamping audio loop, shuffle |
+| `player/` | decoders (mp3, flac, ogg, wav; `video.go`: the sound of a video through ffmpeg or the phone's decoder) with seeking, resampler, the timestamping audio loop, shuffle |
 | `meta/` | tags and cover art, cached |
 | `app/` | the node: server + HTTP API + discovery + supervisor + playlists + play counts + media control. `shift.go` (Shift), `devices.go` (proxy to other devices), `guard.go` (web-page guard), `index.html` (the UI) |
 | `speaker/` | desktop audio output (oto) and its latency model |
 | `mpris/` | Linux media keys and widget |
-| `mobile/`, `android-app/` | Android: gomobile bridge, the native Compose app, the notification/MediaSession service |
+| `mobile/`, `android-app/` | Android: gomobile bridge, the native Compose app, the notification/MediaSession service, `VideoAudio.kt` (Android's decoders for a video's sound) and `VideoPane.kt` (the picture) |
 | `cmd/desktop`, `cmd/play`, `main.go` | laptop app, headless listener, headless server |
 | `webtest/` | web UI test in headless Chrome |
 | `docs/` | how it works, privacy and security, troubleshooting |
@@ -214,6 +230,12 @@ that come from a web page on another site are refused).
 ## Known limits
 
 - The stream is uncompressed PCM, about 1.4 Mbit/s per listener. Fine for a handful of devices.
+- Videos: only the sound is cast. A screen that shows the picture fetches the video file from the device
+  that plays it, so it must reach that device, and the picture is within about a tenth of a second of the
+  sound, not frame-exact. A screen that cannot decode a video (HEVC in some browsers) says so and the
+  sound is unaffected. Which files count as videos is decided by their extension, and one with no audio
+  track is skipped. The desktop needs `ffmpeg`; the phone uses Android's own decoders, so it plays what
+  the phone can. The phone side has been tried on an emulator, not yet on a real phone.
 - Each device's library, favourites and playlists are its own. The desktop window can browse and
   edit another device's, but they are not merged or copied between devices.
 - The laptop app is not native: it shows the web UI in a Chrome-style app window (needs a

@@ -62,7 +62,23 @@ others are known for it).
 - Allow **All files access** when the app asks: the music server reads folders by path.
 - The default folder is the phone's `Music` folder. Add others (SD card, Downloads) in *Devices → Music
   folders*, then *Rescan*.
-- Only mp3, flac, ogg and wav are played.
+- Only mp3, flac, ogg and wav are played, and videos (mp4, m4v, mov, mkv, webm), see the next section.
+
+## Videos are missing, silent or will not show
+
+- **Not in the list on the laptop:** video files are listed only when `ffmpeg` is installed and on the
+  PATH (`ffmpeg -version` in a terminal). Install it and restart the app; the log
+  (`~/.cache/letsgo/letsgo.log`) shows `library: N tracks`. Song files are not affected either way.
+- **Not in the list on the phone, or skipped when played:** the phone decodes the sound with Android's
+  own codecs, so it plays what the phone can. A file with no audio track, or one the phone has no
+  decoder for, is skipped (the log says `skip:`).
+- **"This screen cannot show this video":** that screen's browser or phone cannot decode the picture
+  (HEVC/H.265 is the usual one). The sound still plays.
+- **The picture is a little early or late:** it follows the same *Sync offset* as the sound of that
+  device (*Devices → Sync offset*), so a Bluetooth speaker's delay is taken into account once you
+  have set it.
+- **No picture on a device that only listens:** it fetches the video file from the device that plays,
+  so it has to reach it (port 8080). See [privacy-and-security.md](privacy-and-security.md).
 
 ## Two devices are a little apart
 
@@ -82,10 +98,28 @@ playing, following it` on the other.
 ## The desktop window looks old after an update
 
 Closing the window does not quit the app (music keeps playing). Starting a new build normally
-replaces the copy that is running, and you get the new version. Builds from before that was added cannot
+replaces the copy that is running, and you get the new version. A window that is open at that moment
+reloads itself to the new page (windows from before this existed do not: close them once).
+An old window keeps running the page it loaded, which is why a fix can seem not to have worked. Builds from before that was added cannot
 be replaced: the log says `an older letsgo is still running and cannot be replaced`. Quit that one once
 with `pkill -x desktop` and start again. No Chrome-family browser? The window opens in your
 default browser; `-no-window` starts the app without opening anything.
+
+## The dock shows "chrome-localhost__Default", or no letsgo icon
+
+That is the name Chrome gives an app window in its normal profile. letsgo opens its window in a profile of its
+own so it can be named "letsgo": run `./install-desktop.sh` once (it writes the launcher with the window's
+identity in it), then start letsgo from the applications menu. Windows opened by an older build keep the
+old name until you close them. On Wayland the identity is `chrome-localhost__-letsgo`, on X11 `letsgo`. A
+different browser, or a `-http` host other than `localhost`, gives another one; add it as `StartupWMClass` in
+`~/.local/share/applications/letsgo.desktop`.
+
+## Full screen closes by itself after a second or two
+
+On some Wayland setups Chrome's GPU compositing makes it leave full screen 1.5 s after entering it, for any
+web page (it was seen on COSMIC with Chrome 154 and an Intel + NVIDIA laptop). letsgo starts its window with
+software compositing on Wayland, which avoids it. If it still happens, check that the window was opened by a
+current build (close old windows and start letsgo again), and see `windowArgs` in `cmd/desktop/main.go`.
 
 ## Building from source
 

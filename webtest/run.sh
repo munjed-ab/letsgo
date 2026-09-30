@@ -14,6 +14,9 @@ cp meta/testdata/tagged.mp3 "$T/music/Album/one.mp3"
 cp meta/testdata/tagged.flac "$T/music/Album/two.flac"
 cp meta/testdata/tagged.mp3 "$T/music/Rock/Live/three.mp3"
 cp meta/testdata/plain.mp3 "$T/music/plain.mp3" && cp meta/testdata/plain.mp3 "$T/extra/extra1.mp3"
+# a video is only a track where ffmpeg can decode its sound, so its checks run only there
+LIB=6
+if command -v ffmpeg >/dev/null 2>&1; then cp player/testdata/sweep44100.mp4 "$T/extra/clip.mp4"; LIB=7; fi
 cp player/testdata/sweep44100.ogg "$T/music/Rock/sweep.ogg"
 cp meta/testdata/plain.mp3 "$T/phone/Phone Song.mp3"
 echo '{"tracks":{"Album/one.mp3":{"n":5,"last":100},"gone.mp3":{"n":9,"last":100}}}' >"$T/data/plays.json" # Most Played: one real song, one deleted
@@ -24,5 +27,5 @@ PHONE=$!
 LETSGO_PEER_PORT=18082 "$T/node" -music "$T/music" -data "$T/data" -http 127.0.0.1:18080 -snap 127.0.0.1:11704 -name webtest -no-discovery >"$T/node.log" 2>&1 &
 NODE=$!
 sleep 2
-sed "s|__EXTRA__|$T/extra|g" webtest/test.js >"$T/test.js"
+sed "s|__EXTRA__|$T/extra|g; s|__LIB__|$LIB|g" webtest/test.js >"$T/test.js"
 node webtest/run.js app/index.html "$T/test.js" "$T/chrome"

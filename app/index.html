@@ -51,6 +51,16 @@ label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
 .card.cur{outline:2px solid var(--ac)}
 .card .bar{padding:0}
 .card input{background:var(--bg)}
+.vd{flex:none;font-size:10px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--dim);border-radius:4px;padding:0 4px}
+/* the video view takes the place of the list while it is open; only the picture, the sound comes from the speakers */
+#vidbox{display:none;position:relative;background:#000;align-items:center;justify-content:center}
+body.vid #vidbox{display:flex}body.vid main{display:none}
+#vid{width:100%;max-height:calc(100vh - var(--sticky) - 4px);background:#000}
+#vmsg{position:absolute;color:#ccc;padding:0 20px;text-align:center}
+#vcover{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px;color:#eee;text-align:center}#vcover[hidden]{display:none}
+#vcover img{max-width:min(60vh,80vw);max-height:60vh;border-radius:14px;object-fit:cover;background:#222}#vcover small{color:#aaa}
+#vfs{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;padding:6px 10px;opacity:.6}#vfs:hover{opacity:1}
+#vidbox:fullscreen #vid{height:100%;max-height:none;cursor:pointer}#vidbox:fullscreen #vfs{opacity:0}#vidbox:fullscreen:hover #vfs{opacity:.8}
 
 /* desktop: sidebar, wide track list, player bar along the bottom */
 @media (min-width:860px){
@@ -66,6 +76,7 @@ label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
  nav button{flex:none;text-align:left;border-radius:8px;border-bottom:0;padding:10px 12px}
  nav button.on{background:var(--row);color:var(--ac)}
  main{grid-area:1/2;overflow:auto;padding:0 28px 24px}
+ #vidbox{grid-area:1/2;min-height:0}#vid{height:100%;max-height:none}
  header{grid-area:2/1/3/3;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(180px,1fr) minmax(300px,2fr) minmax(140px,1fr);gap:0 24px;padding:10px 20px;background:var(--bg)}
  #ctl{display:flex;flex-direction:column;gap:6px}
  #btns{justify-content:center}
@@ -80,7 +91,7 @@ label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
  <header>
   <div id="np"><img id="cv" alt=""><div class="tx"><b id="ti">Nothing playing</b><small id="ar"></small></div></div>
   <div id="ctl">
-   <div id="btns"><button id="bp" title="Previous">⏮</button><button id="bt" class="ac" title="Play / pause (space)">▶</button><button id="bn" title="Next">⏭</button></div>
+   <div id="btns"><button id="bp" title="Previous">⏮</button><button id="bt" class="ac" title="Play / pause (space)">▶</button><button id="bn" title="Next">⏭</button><button id="bv" title="Show the video" hidden>🎬</button></div>
    <div id="seek"><span id="el">0:00</span><input id="sk" type="range" min="0" max="1000" value="0"><span id="du">0:00</span></div>
   </div>
   <div id="volbox"><input id="vol" type="range" min="0" max="100" title="Volume (all devices)"></div>
@@ -91,6 +102,7 @@ label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
   <nav id="nav"></nav>
  </aside>
 </div>
+<div id="vidbox"><video id="vid" muted playsinline></video><div id="vmsg" hidden>This screen cannot show this video: its format is not supported here.</div><div id="vcover" hidden><img id="vcimg" alt=""><b id="vcti"></b><small id="vcar"></small></div><button id="vfs" title="Full screen (f)">⛶</button></div>
 <main id="view"></main>
 </div>
 <dialog id="dlg"></dialog>
@@ -118,14 +130,16 @@ const AL=t=>(meta[t]&&meta[t].al)||'';
 const ART=t=>meta[t]&&meta[t].art||'';
 const favs=()=>new Set(lists.favorites);
 const pname=p=>(p.Name||'').replace(/\\ /g,' ');
+const isVideo=t=>/\.(mp4|m4v|mov|mkv|webm)$/i.test(t||'');
 const wide=()=>matchMedia('(min-width:860px)').matches;
 const fixSticky=()=>document.documentElement.style.setProperty('--sticky',wide()?'0px':$('top').offsetHeight+'px');
 
 // ---- header / now playing ----
 async function tick(){
-  const g=gen;
+  const g=gen,t0=performance.now();
   try{
     const m=await api('/api/state');
+    if(m.version){if(!build)build=m.version;else if(build!==m.version)return location.reload()}
     let s=m,bd='';
     if(dev&&!(m.now&&m.now.playing)){const c=await api(D('/api/state')).catch(()=>null);if(c&&c.player&&c.player.playing){s=c;bd=dev}}
     const n=s.now||{};
@@ -141,6 +155,7 @@ async function tick(){
     if(!drag){$('sk').value=now.duration?Math.round(1000*now.elapsed/now.duration):0;$('el').textContent=clock(now.elapsed)}
     $('du').textContent=now.duration?clock(now.duration):'';
     $('sk').disabled=!now.duration;
+    vref={pos:now.elapsed||0,at:(t0+performance.now())/2,playing:!!now.playing};syncVideo();
     if(document.activeElement!==$('vol'))$('vol').value=vs.volume;
     document.title=(now.title?(now.playing?'▶ ':'')+now.title+(now.artist?' — '+now.artist:'')+' · ':'')+'letsgo';
     document.querySelectorAll('.row[data-t]').forEach(r=>r.classList.toggle('cur',r.dataset.t===now.track));
@@ -159,8 +174,50 @@ document.addEventListener('keydown',e=>{
   if(e.key===' '){e.preventDefault();$('bt').click()}
   else if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&now.duration){e.preventDefault();
     post(at(barDev,'/api/control?cmd=seek&t='+Math.max(0,Math.min(now.duration-1,now.elapsed+(e.key==='ArrowRight'?5:-5))))).then(tick).catch(fail)}
-  else if(e.key==='/'){e.preventDefault();tab='music';openPl=null;render();const q=$('q');if(q)q.focus()}
+  else if(e.key==='f'&&document.body.classList.contains('vid')){e.preventDefault();toggleFs()}
+  else if(e.key==='/'){e.preventDefault();closeVideo();tab='music';openPl=null;render();const q=$('q');if(q)q.focus()}
 });
+
+// ---- video ----
+// A video is a song with a picture. Only its sound is cast; this screen fetches the file from the device that
+// plays it (through this node's /dev proxy when that is another device) and shows it muted, kept in step with
+// the position the node says is being heard (minus this device's own sync offset: its speakers are that late).
+// It stays closed until the button is pressed, and closes again when you go back to the music.
+// Full screen is only ever left by you: when a song comes up in a queue of videos and songs it shows the
+// song's cover instead, and the next video is full screen again.
+let videoOn=false,vref=null,vsrc='';
+let build='';   // which build of the desktop app served this page: a newer one replaces the page, so a window that outlives a restart never runs stale code
+function syncVideo(){
+  const v=$('vid'),has=isVideo(now.track),show=videoOn&&has,full=videoOn&&document.fullscreenElement===$('vidbox');
+  document.body.classList.toggle('vid',show||full);
+  $('bv').hidden=!has;$('bv').classList.toggle('on',videoOn);$('bv').title=videoOn?'Show the cover':'Show the video';
+  if(!videoOn&&document.fullscreenElement===$('vidbox'))document.exitFullscreen();
+  $('vcover').hidden=!(full&&!has);v.hidden=full&&!has;
+  if(full&&!has){   // a song while full screen: its cover, no video
+    const base=now.remote&&now.source?'http://'+now.source:at(barDev,'');
+    $('vcimg').src=now.art?base+'/api/art/'+now.art+'?s=512':'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+    $('vcti').textContent=now.title||'';$('vcar').textContent=[now.artist,now.album].filter(Boolean).join(' · ');
+  }
+  if(!show){if(vsrc){v.pause();v.removeAttribute('src');v.load();vsrc=''}return}
+  const src=at(volIp,'/api/video?t='+encodeURIComponent(now.track));
+  if(vsrc!==src){vsrc=src;$('vmsg').hidden=true;v.src=src}
+  if(v.readyState<1||!vref)return;   // loadedmetadata calls this again
+  const want=vref.pos+(vref.playing?(performance.now()-vref.at)/1000:0)-(me.latencyMs||0)/1000,diff=want-v.currentTime;
+  if(Math.abs(diff)>.4||!vref.playing&&Math.abs(diff)>.05)v.currentTime=Math.max(0,want);   // far off, or paused: jump
+  v.playbackRate=vref.playing?Math.max(.9,Math.min(1.1,1+diff/2)):1;   // a little off: catch up over ~2 s
+  if(vref.playing&&v.paused)v.play().catch(()=>{});
+  if(!vref.playing&&!v.paused)v.pause();
+}
+$('vid').onloadedmetadata=syncVideo;
+$('vid').onerror=()=>{if(vsrc)$('vmsg').hidden=false};
+$('bv').onclick=()=>{$('bv').blur();videoOn=!videoOn;syncVideo()};   // blur: Space on a focused button would press it again
+document.addEventListener('fullscreenchange',syncVideo);
+// Full screen is the video box alone; the keys (space, arrows, Esc) and a click on the picture drive playback there.
+const toggleFs=()=>document.fullscreenElement?document.exitFullscreen():$('vidbox').requestFullscreen().catch(()=>{});
+$('vfs').onclick=()=>{$('vfs').blur();toggleFs()};   // blur: the key handler ignores keys while a button has focus
+$('vid').onclick=()=>$('bt').click();
+$('vid').ondblclick=toggleFs;   // its two clicks play/pause twice, which cancels out
+const closeVideo=()=>{if(videoOn){videoOn=false;syncVideo()}};
 
 // ---- which device we control ----
 function devices(){   // [ip, name, state] for this device, then every other one we know of
@@ -220,7 +277,7 @@ async function loadDevStates(){
 // ---- navigation ----
 const tabs=[['music','Music'],['fav','Favorites'],['pl','Playlists'],['dev','Devices']];
 $('nav').innerHTML=tabs.map(([k,n])=>`<button data-tab="${k}">${n}</button>`).join('');
-$('nav').onclick=e=>{const k=e.target.dataset.tab;if(k){tab=k;openPl=null;clearSel();if(k==='dev')loadDevStates();render()}};
+$('nav').onclick=e=>{const k=e.target.dataset.tab;if(k){closeVideo();tab=k;openPl=null;clearSel();if(k==='dev')loadDevStates();render()}};
 
 function clearSel(){selecting=false;sel=new Set()}
 
@@ -230,7 +287,7 @@ function trackRow(t){
   return `<li class="row${t===now.track?' cur':''}" data-t="${esc(t)}">
    ${selecting?`<input type="checkbox" class="ck" ${c?'checked':''}>`:''}
    ${ART(t)?`<img loading="lazy" src="${D('/api/art/'+ART(t))}?s=96" alt="">`:'<div class="ph">🎵</div>'}
-   <div class="tx"><b>${esc(T(t))}</b><small>${esc(A(t))}${plays(t)}</small></div><span class="al">${esc(AL(t))}</span>
+   <div class="tx"><b>${esc(T(t))}</b><small>${esc(A(t))}${plays(t)}</small></div><span class="al">${esc(AL(t))}</span>${isVideo(t)?'<span class="vd" title="This song has a video">VIDEO</span>':''}
    ${selecting?'':`<button class="heart ${f?'on':''}" title="Favorite">${f?'♥':'♡'}</button><button class="more" title="Add to playlist">＋</button>`}
   </li>`;
 }

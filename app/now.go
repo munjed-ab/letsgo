@@ -109,6 +109,12 @@ func (n *Node) Now() Now {
 	if n.peer.ok && (n.peer.now.Playing || (n.peer.now.Track != "" && local.Track == "")) {
 		r := n.peer.now
 		r.Remote, r.Source = true, addr
+		if r.Playing { // the answer may be up to a second old (see above): move it on, or a video shown here would lag
+			r.Elapsed += time.Since(n.peer.at).Seconds()
+			if r.Duration > 0 {
+				r.Elapsed = min(r.Elapsed, r.Duration)
+			}
+		}
 		return r
 	}
 	return local

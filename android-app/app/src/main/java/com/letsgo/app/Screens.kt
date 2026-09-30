@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Speaker
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -108,10 +109,16 @@ private fun TrackRow(
                 color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
             )
-            Text(
-                repo.subtitleOf(track) + if (plays) repo.playsSuffix(track) else "", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall, color = dim(),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isVideo(track)) { // a song with a picture
+                    Icon(Icons.Rounded.Videocam, "Video", Modifier.size(16.dp), tint = dim())
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    repo.subtitleOf(track) + if (plays) repo.playsSuffix(track) else "", maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall, color = dim(),
+                )
+            }
         }
         if (sel.active) {
             Spacer(Modifier.width(12.dp))

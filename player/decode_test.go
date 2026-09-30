@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // The fixtures (testdata/sweep*) are 3 s of stereo tone whose pitch doubles every
@@ -68,9 +69,12 @@ func TestSeekAllFormats(t *testing.T) {
 	wav44, wav48 := filepath.Join(dir, "s44.wav"), filepath.Join(dir, "s48.wav")
 	writeSweepWAV(t, wav44, 44100)
 	writeSweepWAV(t, wav48, 48000)
-	files := []string{wav44, wav48, "testdata/sweep44100.mp3", "testdata/sweep48000.mp3", "testdata/sweep44100.ogg", "testdata/sweep44100.flac"}
+	files := []string{wav44, wav48, "testdata/sweep44100.mp3", "testdata/sweep48000.mp3", "testdata/sweep44100.ogg", "testdata/sweep44100.flac", "testdata/sweep44100.mp4"}
 	for _, path := range files {
 		t.Run(filepath.Base(path), func(t *testing.T) {
+			if IsVideo(path) && !VideoSupported() {
+				t.Skip("no ffmpeg")
+			}
 			raw, err := open(path)
 			if err != nil {
 				t.Fatal(err)
@@ -135,4 +139,52 @@ func TestSeekIsSampleExact(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A video is a song whose sound comes from the platform: the registered decoder wins over ffmpeg, and
+// without either the video is not in the library at all.
+func TestVideoDecoderHook(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("not really a video"), 0o644)
+	os.WriteFile(filepath.Join(dir, "song.wav"), nil, 0o644)
+
+	old := VideoDecoder
+	defer func() { VideoDecoder = old }()
+	called := ""
+	VideoDecoder = func(path string) (Source, error) {
+		called = filepath.Base(path)
+		return openWAVBytes(t, dir), nil
+	}
+	p := New([]string{dir}, sinkFn(func(time.Duration, []byte) {}), func() time.Duration { return 0 })
+	defer p.Close()
+	if lib := p.Library(); len(lib) != 2 || lib[0] != "clip.mp4" {
+		t.Fatalf("library = %v, want the video listed next to the song", lib)
+	}
+	if _, ok := p.VideoFile("clip.mp4"); !ok {
+		t.Error("VideoFile: the video was not found")
+	}
+	if _, ok := p.VideoFile("song.wav"); ok {
+		t.Error("VideoFile served a song")
+	}
+	if _, ok := p.VideoFile("../clip.mp4"); ok {
+		t.Error("VideoFile served an id that is not in the library")
+	}
+	s, err := open(filepath.Join(dir, "clip.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if called != "clip.mp4" {
+		t.Errorf("registered decoder called for %q, want clip.mp4", called)
+	}
+}
+
+func openWAVBytes(t *testing.T, dir string) source {
+	path := filepath.Join(dir, "tone.wav")
+	writeSweepWAV(t, path, 44100)
+	s, err := open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
 }

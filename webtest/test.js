@@ -111,7 +111,45 @@ const setq=v=>{const q=document.getElementById('q');q.value=v;q.dispatchEvent(ne
  click(document.querySelector('nav button[data-tab="dev"]'));await sleep(200);
  ok('devices tab lists this device as listening',document.body.textContent.includes('webtest'));
  document.getElementById('src').value='__EXTRA__';click(B('Add folder'));await sleep(900);
- ok('adding a music folder adds its songs',(await j('/api/library')).length===6,(await j('/api/library')).length);
+ ok('adding a music folder adds its songs',(await j('/api/library')).length===__LIB__,(await j('/api/library')).length);
+ if(__LIB__===7){   // ---- video: a song with a picture that stays closed until asked for ----
+  click(document.querySelector('nav button[data-tab="music"]'));await sleep(100);
+  click(document.querySelector('.crumb button[data-dir=""]'));await sleep(60);
+  click(document.querySelector('.row[data-dir="extra"]'));await sleep(100);
+  const clip=document.querySelector('.row[data-t="extra/clip.mp4"]');
+  ok('a video is listed like a song, with a VIDEO mark; a song has none',!!clip&&!!clip.querySelector('.vd')&&!document.querySelector('.row[data-t="extra/extra1.mp3"] .vd'));
+  click(document.querySelector('.row[data-t="extra/extra1.mp3"]'));
+  ok('the video button is not there for a song',await until(()=>document.getElementById('bv').hidden));
+  click(clip);
+  ok('playing a video does not open it: the button appears, the picture stays closed',await until(()=>!document.getElementById('bv').hidden)&&!document.body.classList.contains('vid')&&!document.getElementById('vid').getAttribute('src'));
+  click(document.getElementById('bv'));
+  ok('the button opens the video view, which loads the file from this node',document.body.classList.contains('vid')&&document.getElementById('vid').getAttribute('src')==='/api/video?t=extra%2Fclip.mp4',document.getElementById('vid').getAttribute('src'));
+  ok('and the browser can read it',await until(()=>document.getElementById('vid').readyState>=1&&document.getElementById('vid').videoWidth===96),document.getElementById('vid').readyState);
+  ok('the list is out of the way while the video is open',getComputedStyle(document.getElementById('view')).display==='none');
+  ok('the video view has a full screen button',!!document.getElementById('vfs')&&getComputedStyle(document.getElementById('vfs')).display!=='none');
+  click(document.getElementById('vid'));await sleep(400);
+  ok('a click on the picture pauses, another plays',(await j('/api/state')).player.playing===false);
+  click(document.getElementById('vid'));await sleep(400);
+  ok('and plays again',(await j('/api/state')).player.playing===true);
+  {let fsOk=true;try{await document.getElementById('vidbox').requestFullscreen()}catch(e){fsOk=false}   // headless Chrome may refuse: then this is skipped, not failed
+   if(fsOk){ok('full screen shows only the video box',document.fullscreenElement===document.getElementById('vidbox'));
+    await document.exitFullscreen();await sleep(200);ok('and leaves again',!document.fullscreenElement)}}
+  {const box=document.getElementById('vidbox'),exits=[];const realExit=document.exitFullscreen;   // full screen outlives the track
+   Object.defineProperty(document,'fullscreenElement',{get:()=>box,configurable:true});document.exitFullscreen=()=>{exits.push(1);return Promise.resolve()};
+   click(document.querySelector('.row[data-t="extra/extra1.mp3"]')||document.querySelector('.row[data-t]'));   // a song
+   ok('a song while full screen shows its cover and leaves full screen alone',await until(()=>!isVideo(now.track)&&!document.getElementById('vcover').hidden&&document.getElementById('vid').hidden&&document.body.classList.contains('vid'))&&exits.length===0,exits.length);
+   delete document.fullscreenElement;document.exitFullscreen=realExit;document.dispatchEvent(new Event('fullscreenchange'));await sleep(200);
+   ok('and when full screen ends the list is back',!document.body.classList.contains('vid')&&document.getElementById('vcover').hidden)}
+  click(document.querySelector('nav button[data-tab="fav"]'));await sleep(100);
+  ok('going back to the music closes it',!document.body.classList.contains('vid')&&!document.getElementById('vid').getAttribute('src'));
+  await post('/api/control?cmd=pause');
+  click(document.querySelector('nav button[data-tab="music"]'));await sleep(100);   // the timeline check below and the player bar after it need sweep.ogg to be the last song here
+  click(document.querySelector('.crumb button[data-dir=""]'));await sleep(60);
+  click(document.querySelector('.row[data-dir="Rock"]'));await sleep(100);
+  click(document.querySelector('.row[data-t="Rock/sweep.ogg"]'));await sleep(300);
+  await post('/api/control?cmd=pause');
+  click(document.querySelector('nav button[data-tab="dev"]'));await sleep(300);
+ }
  click(document.querySelector('button[data-a="rmsrc"][data-d="__EXTRA__"]'));await sleep(900);
  ok('removing the folder removes them',(await j('/api/library')).length===5);
  const lat=document.getElementById('lat');lat.value=-30;lat.dispatchEvent(new Event('change',{bubbles:true}));await sleep(300);

@@ -48,6 +48,13 @@ func (s *seekBuf) Seek(off int64, whence int) (int64, error) {
 var Exts = map[string]bool{".mp3": true, ".flac": true, ".ogg": true, ".wav": true}
 
 func open(path string) (source, error) {
+	if IsVideo(path) {
+		s, err := openVideo(path)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+		}
+		return s, nil
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err

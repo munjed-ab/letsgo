@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -59,6 +60,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -191,6 +193,9 @@ fun LetsGoApp(repo: Repo, storageOk: Boolean, askStorage: () -> Unit, pickFolder
             }
         }
         if (showNow) NowPlaying(repo, onClose = { showNow = false }, onDevices = { showNow = false; tab = 3 })
+        val full = showNow && repo.videoOn && repo.videoFull
+        LaunchedEffect(full) { if (!full) repo.videoFull = false } // only you end full screen (or leaving the player); a song in between shows its cover
+        if (full) VideoFullScreen(repo, onClose = { repo.videoFull = false })
     }
     Dialogs(repo, dialog, onDone = { dialog = null }, onSwitch = { dialog = it })
 }
@@ -242,10 +247,24 @@ fun NowPlaying(repo: Repo, onClose: () -> Unit, onDevices: () -> Unit) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold,
                     )
                 }
-                Spacer(Modifier.size(48.dp))
+                if (isVideo(n.track)) {
+                    // like Spotify: the song's own picture is one tap away, and stays closed until asked for
+                    IconButton(onClick = { repo.videoOn = !repo.videoOn }) {
+                        Icon(
+                            Icons.Rounded.Videocam, if (repo.videoOn) "Show the cover" else "Show the video", Modifier.size(28.dp),
+                            tint = if (repo.videoOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.size(48.dp))
+                }
             }
             Spacer(Modifier.weight(1f))
-            Cover(n.art, 300.dp, base = repo.nowArtBase, large = true, shape = RoundedCornerShape(20.dp))
+            if (repo.videoOn && isVideo(n.track) && !repo.videoFull) {
+                VideoPane(repo, Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(12.dp))) { FullScreenButton { repo.videoFull = true } }
+            } else {
+                Cover(n.art, 300.dp, base = repo.nowArtBase, large = true, shape = RoundedCornerShape(20.dp))
+            }
             Spacer(Modifier.height(24.dp))
             Text(
                 n.title.ifEmpty { "Nothing playing" }, style = MaterialTheme.typography.headlineSmall,

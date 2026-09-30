@@ -6,10 +6,13 @@
 package mobile
 
 import (
+	"encoding/binary"
 	"encoding/json"
+	"io"
 	"time"
 
 	"letsgo/app"
+	"letsgo/player"
 )
 
 var node *app.Node
@@ -93,4 +96,77 @@ func Control(cmd string, arg float64) error {
 		return nil
 	}
 	return node.Do(cmd, arg)
+}
+
+// VideoDecoder is implemented by the app on top of Android's MediaExtractor and MediaCodec: it
+// decodes the sound of a video file (the pure-Go decoders cannot; a laptop uses ffmpeg). One
+// file is open at a time; Open closes the previous one.
+type VideoDecoder interface {
+	// Open starts decoding the first audio track of the file. It returns the length in
+	// microseconds (0 if unknown) and fails if there is no audio to decode.
+	Open(path string) (int64, error)
+	// Rate is the sample rate of what Read returns (valid after Open).
+	Rate() int
+	// Read returns the next decoded audio: 16-bit little-endian stereo, whole frames. Empty means the end.
+	Read() ([]byte, error)
+	// SeekUs moves to a position in microseconds; the next Read starts there.
+	SeekUs(us int64)
+	Close()
+}
+
+// SetVideoDecoder makes videos playable on this phone. Call it before Start: the library is
+// scanned then, and videos are left out of it when nothing can decode them.
+func SetVideoDecoder(d VideoDecoder) {
+	player.VideoDecoder = func(path string) (player.Source, error) {
+		us, err := d.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		v := &videoSource{d: d, rate: d.Rate(), frames: -1}
+		if us > 0 {
+			v.frames = us * int64(v.rate) / 1_000_000
+		}
+		return v, nil
+	}
+}
+
+// videoSource is a player.Source over a VideoDecoder.
+type videoSource struct {
+	d      VideoDecoder
+	rate   int
+	frames int64
+	buf    []byte // decoded audio not handed out yet
+}
+
+func (v *videoSource) Rate() int     { return v.rate }
+func (v *videoSource) Frames() int64 { return v.frames }
+func (v *videoSource) Close() error  { v.d.Close(); return nil }
+
+func (v *videoSource) SeekFrame(frame int64) error {
+	v.buf = nil
+	v.d.SeekUs(frame * 1_000_000 / int64(v.rate))
+	return nil
+}
+
+func (v *videoSource) Read(dst []int16) (int, error) {
+	n := 0
+	for n < len(dst) {
+		if len(v.buf) < 4 {
+			b, err := v.d.Read()
+			if err != nil {
+				return n, err
+			}
+			if len(b) < 4 {
+				return n, io.EOF
+			}
+			v.buf = b
+		}
+		k := min(len(dst)-n, len(v.buf)/4*2) // whole stereo frames
+		for i := 0; i < k; i++ {
+			dst[n+i] = int16(binary.LittleEndian.Uint16(v.buf[i*2:]))
+		}
+		n += k
+		v.buf = v.buf[k*2:]
+	}
+	return n, nil
 }

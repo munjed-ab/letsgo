@@ -32,7 +32,7 @@ uses ports 18080 to 18082 on 127.0.0.1.
   machine; end-to-end tests over loopback (`snap/loopback_test.go`, `app/handover_test.go`) check the real
   thing in real time.
 - Tests use small synthetic audio (`player/testdata`, `meta/testdata`: tones and sweeps made with ffmpeg).
-  Do not add copyrighted music.
+  Do not add copyrighted music or video. The video tests (`sweep44100.mp4`) need `ffmpeg` installed and skip without it.
 
 ## Style
 

@@ -3,11 +3,15 @@ package app
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"letsgo/snap"
 )
+
+var videoMime = map[string]string{".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime", ".mkv": "video/x-matroska", ".webm": "video/webm"}
 
 // mediaRoutes wires seek, "what is playing" and media control, tags and cover
 // art, and choosing which device to listen to.
@@ -17,6 +21,7 @@ import (
 //	POST /api/seek?t=SEC                        seek this device's own player
 //	GET  /api/meta                              {done,total,tracks:{id:{t,a,al,art}}}
 //	GET  /api/art/{hash}[?s=PIXELS]             cover art, scaled to fit
+//	GET  /api/video?t=TRACK                     the file of a video track, with Range (screens show it muted, in step with the sound)
 //	GET  /api/peers                             devices found on the network, and whether they cast
 //	POST /api/listen {addr}                     listen to that device ("" = automatic)
 func (n *Node) mediaRoutes(mux *http.ServeMux) {
@@ -69,6 +74,17 @@ func (n *Node) mediaRoutes(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", mime)
 		w.Header().Set("Cache-Control", "public, max-age=86400") // a hash never changes its picture
 		w.Write(data)
+	})
+	mux.HandleFunc("/api/video", func(w http.ResponseWriter, r *http.Request) {
+		path, ok := n.p.VideoFile(r.URL.Query().Get("t"))
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if mime, ok := videoMime[strings.ToLower(filepath.Ext(path))]; ok { // Go's own table has none of these
+			w.Header().Set("Content-Type", mime)
+		}
+		http.ServeFile(w, r, path) // answers Range requests, which is how a screen seeks
 	})
 	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		type peer struct {
