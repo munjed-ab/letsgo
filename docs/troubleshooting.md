@@ -73,7 +73,9 @@ others are known for it).
   own codecs, so it plays what the phone can. A file with no audio track, or one the phone has no
   decoder for, is skipped (the log says `skip:`).
 - **"This screen cannot show this video":** that screen's browser or phone cannot decode the picture
-  (HEVC/H.265 is the usual one). The sound still plays.
+  (HEVC/H.265 is the usual one), or the file failed three times in a row. The sound still plays. A
+  single decode error while jumping to a place in the video is recovered by itself (see
+  [how-it-works.md](how-it-works.md)).
 - **The picture is a little early or late:** it follows the same *Sync offset* as the sound of that
   device (*Devices → Sync offset*), so a Bluetooth speaker's delay is taken into account once you
   have set it.

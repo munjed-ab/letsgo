@@ -46,6 +46,9 @@ type peerNow struct {
 	at   time.Time
 	now  Now
 	ok   bool
+	// following: the last Now described the peer. It stays so while the peer is paused, so pausing
+	// a video from this device's controls keeps showing that video instead of this device's old song.
+	following bool
 }
 
 func (n *Node) localNow() Now {
@@ -82,18 +85,16 @@ func (n *Node) hearing() string {
 }
 
 // Now returns what is playing here, or on the device we are hearing when that
-// one is playing (or paused, for a device with nothing of its own) and we are not.
+// one is playing (or paused, for a device with nothing of its own or that already shows it) and we are not.
 func (n *Node) Now() Now {
 	local := n.localNow()
-	if local.Playing {
-		return local
-	}
 	addr := n.hearing()
-	if addr == "" {
-		return local
-	}
 	n.peer.mu.Lock()
 	defer n.peer.mu.Unlock()
+	if local.Playing || addr == "" {
+		n.peer.following = false
+		return local
+	}
 	if n.peer.addr != addr || time.Since(n.peer.at) > time.Second {
 		n.peer.addr, n.peer.at = addr, time.Now()
 		n.peer.now, n.peer.ok = Now{}, false
@@ -104,9 +105,12 @@ func (n *Node) Now() Now {
 		}
 	}
 	// Follow the peer while it plays. Once it is paused keep following it if we
-	// have nothing of our own queued, so "play" on this device's controls resumes
-	// it instead of doing nothing.
-	if n.peer.ok && (n.peer.now.Playing || (n.peer.now.Track != "" && local.Track == "")) {
+	// have nothing of our own queued (or were following it a moment ago), so "play" on
+	// this device's controls resumes it instead of doing nothing.
+	if n.peer.ok { // a missed answer changes nothing: a paused peer must not be dropped by one slow reply
+		n.peer.following = n.peer.now.Playing || (n.peer.now.Track != "" && (local.Track == "" || n.peer.following))
+	}
+	if n.peer.ok && n.peer.following {
 		r := n.peer.now
 		r.Remote, r.Source = true, addr
 		if r.Playing { // the answer may be up to a second old (see above): move it on, or a video shown here would lag

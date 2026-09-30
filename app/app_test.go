@@ -552,3 +552,46 @@ func TestFreshDeviceFollowsPausedPeer(t *testing.T) {
 		t.Errorf("after playing its own song the laptop should control itself: %+v", n)
 	}
 }
+
+// Pausing the phone from the laptop (a click on the video, the pause button) must keep showing the
+// phone's track, even though the laptop played a song of its own earlier: the picture and the play
+// button that resumes it stay, instead of the laptop's old song coming back.
+func TestPausingPeerKeepsShowingIt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real-time test")
+	}
+	phoneMusic, laptopMusic := t.TempDir(), t.TempDir()
+	writeRampNamed(t, phoneMusic, "phone.wav", 30)
+	writeRampNamed(t, laptopMusic, "laptop.wav", 30)
+	aSnap, aHTTP := freeAddr(t), freeAddr(t)
+	a, err := Start([]string{phoneMusic}, "", aSnap, aHTTP, "phone", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Stop()
+	b, err := Start([]string{laptopMusic}, "", freeAddr(t), freeAddr(t), "laptop", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Stop()
+	b.setPeerPort(port(aHTTP))
+	b.Pin(aSnap)
+
+	b.p.PlayIndex(0) // the laptop has played something of its own
+	b.p.Pause()
+	a.p.PlayIndex(0)
+	time.Sleep(2500 * time.Millisecond)
+	if n := b.Now(); !n.Remote || n.Track != "phone.wav" || !n.Playing {
+		t.Fatalf("laptop should follow the playing phone: %+v", n)
+	}
+	if err := b.Do("toggle", 0); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1200 * time.Millisecond)
+	if n := b.Now(); !n.Remote || n.Playing || n.Track != "phone.wav" {
+		t.Fatalf("laptop dropped the phone it paused: %+v", n)
+	}
+	if err := b.Do("toggle", 0); err != nil || !a.p.State().Playing {
+		t.Fatalf("laptop's play must resume the phone (err %v, phone playing %v)", err, a.p.State().Playing)
+	}
+}

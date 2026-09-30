@@ -5,7 +5,10 @@ import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.media.MediaPlayer
 import android.net.Uri
+import android.util.Log
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -219,17 +222,40 @@ private fun VideoSurface(repo: Repo, track: String, url: String, modifier: Modif
     }
 }
 
-/** One MediaPlayer on one video URL, steered to a position. */
+/**
+ * One MediaPlayer on one video URL, steered to a position. A jump into the middle of some files cannot be
+ * decoded and leaves the player dead (whatever error it reports), so an error opens the file again a few
+ * seconds before that spot, which plays through, and the picture catches up by playing faster. Only an
+ * error that keeps coming back, or one before the file ever started, is given up on.
+ */
 private class VideoFollower(private val url: String) {
     private var mp: MediaPlayer? = null
+    private var holder: SurfaceHolder? = null
+    private var onSize: (Float) -> Unit = {}
+    private var onGiveUp: () -> Unit = {}
     private var ready = false
     private var done = false // played to its end: start() would begin again
     private var seekedAt = 0L
+    private var fails = 0 // errors in a row that opening again did not cure
+    private var back = 0 // seconds to start before the place that failed
+    private var catching = false // behind on purpose after an error: no jumping, just playing faster
+    private var speed = 1f
 
     fun open(holder: SurfaceHolder, onSize: (Float) -> Unit, onError: () -> Unit) {
+        this.holder = holder
+        this.onSize = onSize
+        onGiveUp = onError
+        fails = 0
+        back = 0
+        catching = false
+        start()
+    }
+
+    private fun start() {
         release()
         val p = MediaPlayer()
         mp = p
+        speed = 1f
         try {
             p.setDataSource(url)
             p.setDisplay(holder)
@@ -237,10 +263,20 @@ private class VideoFollower(private val url: String) {
             p.setOnVideoSizeChangedListener { _, w, h -> if (w > 0 && h > 0) onSize(w.toFloat() / h) }
             p.setOnPreparedListener { ready = true }
             p.setOnCompletionListener { done = true }
-            p.setOnErrorListener { _, _, _ -> onError(); true }
+            p.setOnErrorListener { _, what, extra ->
+                Log.w("letsgo", "video error $what/$extra at try $fails")
+                val started = ready
+                ready = false // the player is dead until opened again
+                if (started && fails < 3) {
+                    fails++
+                    back = 3 * fails
+                    Handler(Looper.getMainLooper()).post { if (mp === p) start() } // not from inside its own callback
+                } else onGiveUp()
+                true
+            }
             p.prepareAsync()
         } catch (e: Exception) {
-            onError()
+            onGiveUp()
         }
     }
 
@@ -256,14 +292,32 @@ private class VideoFollower(private val url: String) {
         val p = mp ?: return
         if (!ready || done) return
         val t = SystemClock.elapsedRealtime()
+        // the length comes from the node: asking the player fails on some files, and a failed call is reported as an error
+        val end = if (now.duration > 0) now.duration - 0.1 else Double.MAX_VALUE
         val want = (now.elapsed + (if (now.playing) (t - nowAt) / 1000.0 else 0.0) - latencyMs / 1000.0)
-            .coerceIn(0.0, maxOf(0.0, p.duration / 1000.0 - 0.1))
-        val off = abs(want - p.currentPosition / 1000.0)
-        if (t - seekedAt > 800 && off > (if (now.playing) 0.35 else 0.1)) { // far off, or paused: jump
+            .coerceIn(0.0, maxOf(0.0, end))
+        val off = want - p.currentPosition / 1000.0
+        fun jump(to: Double) {
             seekedAt = t
-            val ms = (want * 1000).toInt()
+            val ms = (to * 1000).toInt()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) p.seekTo(ms.toLong(), MediaPlayer.SEEK_CLOSEST) else p.seekTo(ms)
         }
+        if (back > 0) {
+            jump(maxOf(0.0, want - back))
+            back = 0
+            catching = true
+        } else if (t - seekedAt > 800 && abs(off) > (if (now.playing) 0.35 else 0.1) && !(catching && now.playing && off > 0 && off < 12)) {
+            jump(want) // far off, or paused: jump
+        }
+        if (catching && abs(off) < 0.4) {
+            catching = false
+            fails = 0
+        }
         if (now.playing && !p.isPlaying) p.start() else if (!now.playing && p.isPlaying) p.pause()
+        // a rate other than 1 only while catching up; setting one on a paused player would start it
+        val rate = if (catching && now.playing) minOf(4.0, 1 + off / 2).coerceAtLeast(1.0).toFloat() else 1f
+        if (p.isPlaying && abs(rate - speed) > 0.1f) {
+            try { p.playbackParams = p.playbackParams.setSpeed(rate); speed = rate } catch (_: Exception) {}
+        }
     }
 }

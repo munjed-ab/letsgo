@@ -185,7 +185,7 @@ document.addEventListener('keydown',e=>{
 // It stays closed until the button is pressed, and closes again when you go back to the music.
 // Full screen is only ever left by you: when a song comes up in a queue of videos and songs it shows the
 // song's cover instead, and the next video is full screen again.
-let videoOn=false,vref=null,vsrc='';
+let videoOn=false,vref=null,vsrc='',vfail=0,vback=0,vcatch=false;   // after a decode error: retries so far, seconds to start earlier by, playing faster to catch up
 let build='';   // which build of the desktop app served this page: a newer one replaces the page, so a window that outlives a restart never runs stale code
 function syncVideo(){
   const v=$('vid'),has=isVideo(now.track),show=videoOn&&has,full=videoOn&&document.fullscreenElement===$('vidbox');
@@ -200,16 +200,23 @@ function syncVideo(){
   }
   if(!show){if(vsrc){v.pause();v.removeAttribute('src');v.load();vsrc=''}return}
   const src=at(volIp,'/api/video?t='+encodeURIComponent(now.track));
-  if(vsrc!==src){vsrc=src;$('vmsg').hidden=true;v.src=src}
+  if(vsrc!==src){vsrc=src;vfail=vback=0;vcatch=false;$('vmsg').hidden=true;v.src=src}
   if(v.readyState<1||!vref)return;   // loadedmetadata calls this again
   const want=vref.pos+(vref.playing?(performance.now()-vref.at)/1000:0)-(me.latencyMs||0)/1000,diff=want-v.currentTime;
-  if(Math.abs(diff)>.4||!vref.playing&&Math.abs(diff)>.05)v.currentTime=Math.max(0,want);   // far off, or paused: jump
-  v.playbackRate=vref.playing?Math.max(.9,Math.min(1.1,1+diff/2)):1;   // a little off: catch up over ~2 s
+  if(vback){v.currentTime=Math.max(0,want-vback);vback=0;vcatch=true}   // the spot we jumped to could not be decoded: start before it, then catch up
+  else if(Math.abs(diff)>.4&&!(vcatch&&diff>0&&diff<12)||!vref.playing&&Math.abs(diff)>.05)v.currentTime=Math.max(0,want);   // far off, or paused: jump (not while catching up)
+  if(vcatch&&Math.abs(diff)<.4){vcatch=false;vfail=0}
+  v.playbackRate=vref.playing?Math.max(.9,Math.min(vcatch?4:1.1,1+diff/2)):1;   // a little off: catch up over ~2 s
   if(vref.playing&&v.paused)v.play().catch(()=>{});
   if(!vref.playing&&!v.paused)v.pause();
 }
 $('vid').onloadedmetadata=syncVideo;
-$('vid').onerror=()=>{if(vsrc)$('vmsg').hidden=false};
+// A jump into some files' middle cannot be decoded (a keyframe the browser cannot start from) and that ends the element:
+// load it again and start a few seconds earlier, which plays through. Only a format it cannot show at all gets the message.
+$('vid').onerror=()=>{
+  if(!vsrc)return;
+  if($('vid').error.code!==4&&vfail<3){vfail++;vback=3*vfail;$('vid').src=vsrc}else $('vmsg').hidden=false;
+};
 $('bv').onclick=()=>{$('bv').blur();videoOn=!videoOn;syncVideo()};   // blur: Space on a focused button would press it again
 document.addEventListener('fullscreenchange',syncVideo);
 // Full screen is the video box alone; the keys (space, arrows, Esc) and a click on the picture drive playback there.

@@ -163,6 +163,16 @@ goes through the player and out to every device; the picture never enters the st
   the phone seeks when it is 0.35 s off (0.1 s while paused), checked every 300 ms. Measured in Chrome
   against a running node the picture stayed within 30 ms of the reported position, through a seek and
   a pause.
+- **When a jump cannot be decoded.** Some files cannot be started from certain places (a keyframe the
+  decoder cannot begin at: in one test file, Chrome fails on every seek between 62.7 s and 65.3 s), and
+  the player then stops with an error. The screen does not treat that as "cannot show this video": it
+  opens the file again 3 s before the place that failed (6 s, then 9 s if it fails again), which plays
+  through, and catches up by playing up to 4x faster without jumping. Only a format it cannot decode at
+  all, or three failures in a row, shows the message. The phone takes the file's length from the node,
+  because asking `MediaPlayer` for it fails on some files and that failure is reported as an error.
+- **Pausing what you hear.** A device that hears another one keeps showing that device's track while
+  it is paused, once it has shown it, so pause (or stop) from its controls leaves the video and the
+  play button that resumes it in place. It goes back to its own last song only when it plays one.
 - **Full screen.** On the web page it is the browser's Fullscreen API on the video box alone (the keys
   and a click on the picture still drive playback); only closing the video view or leaving full screen
   yourself ends it. On the phone it is an overlay (`VideoFullScreen` in `VideoPane.kt`) that hides the
