@@ -149,7 +149,7 @@ async function tick(){
     if(g!==gen)return;
     me=m;now=n;barDev=bd;volIp=vip;
     const artBase=now.remote&&now.source?'http://'+now.source:at(bd,'');
-    $('ti').textContent=now.title||'Nothing playing';
+    $('ti').textContent=$('ti').title=now.title||'Nothing playing';
     $('ar').textContent=[now.artist,now.album].filter(Boolean).join(' · ')||(now.track?(now.context||'Music'):'');
     $('cv').src=now.art?artBase+'/api/art/'+now.art+'?s=128':'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
     $('bt').textContent=now.playing?'⏸':'▶';
@@ -197,7 +197,7 @@ function syncVideo(){
   if(full&&!has){   // a song while full screen: its cover, no video
     const base=now.remote&&now.source?'http://'+now.source:at(barDev,'');
     $('vcimg').src=now.art?base+'/api/art/'+now.art+'?s=512':'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-    $('vcti').textContent=now.title||'';$('vcar').textContent=[now.artist,now.album].filter(Boolean).join(' · ');
+    $('vcti').textContent=$('vcti').title=now.title||'';$('vcar').textContent=[now.artist,now.album].filter(Boolean).join(' · ');
   }
   if(!show){if(vsrc){v.pause();v.removeAttribute('src');v.load();vsrc=''}return}
   const src=at(volIp,'/api/video?t='+encodeURIComponent(now.track));

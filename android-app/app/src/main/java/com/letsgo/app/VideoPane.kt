@@ -127,7 +127,7 @@ fun VideoFullScreen(repo: Repo, onClose: () -> Unit) {
             Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Cover(n.art, 240.dp, base = repo.nowArtBase, large = true, shape = RoundedCornerShape(16.dp))
                 Spacer(Modifier.height(16.dp))
-                Text(n.title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                Text(n.title, Modifier.scrollIfLong(), color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1, textAlign = TextAlign.Center)
                 if (n.artist.isNotEmpty()) Text(n.artist, color = Color.White.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -148,7 +148,7 @@ private fun BoxScope.FullControls(repo: Repo, onClose: () -> Unit, onTouch: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(n.title, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(n.title, Modifier.scrollIfLong(), color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1)
             if (n.artist.isNotEmpty()) Text(n.artist, color = soft, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = onClose) { Icon(Icons.Rounded.FullscreenExit, "Leave full screen", tint = Color.White) }

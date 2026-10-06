@@ -5,7 +5,9 @@ import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.IntentFilter
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -50,6 +52,11 @@ class PlayerService : Service() {
     private var session: MediaSession? = null
     private val commands = Executors.newSingleThreadExecutor() // media buttons must not block the main thread
     private var focusRequest: AudioFocusRequest? = null
+    // Headphones unplugged or a Bluetooth speaker gone: stop instead of carrying on
+    // out loud, and stay stopped until play is pressed again.
+    private val noisy = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) = control("pause")
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -105,6 +112,7 @@ class PlayerService : Service() {
             }
         }.also { it.start() }
         createSession()
+        registerReceiver(noisy, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
         mediaThread = Thread { mediaLoop() }.also { it.start() }
         return START_STICKY
     }
@@ -398,6 +406,7 @@ class PlayerService : Service() {
             .build()
 
     override fun onDestroy() {
+        if (running) unregisterReceiver(noisy)
         running = false
         mediaThread?.interrupt()
         session?.release()

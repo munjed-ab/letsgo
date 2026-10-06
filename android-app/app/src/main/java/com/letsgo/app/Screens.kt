@@ -111,7 +111,7 @@ private fun TrackRow(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                repo.titleOf(track), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                repo.titleOf(track), Modifier.scrollIfLong(), maxLines = 1,
                 color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = if (current) FontWeight.SemiBold else FontWeight.Normal,
             )

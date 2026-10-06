@@ -2,6 +2,8 @@ package com.letsgo.app
 
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -202,6 +204,10 @@ fun LetsGoApp(repo: Repo, storageOk: Boolean, askStorage: () -> Unit, pickFolder
 
 // ---- mini player and full now-playing ----
 
+/** One line that slides sideways when it does not fit, so a long title can be read in full. */
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.scrollIfLong() = basicMarquee(iterations = Int.MAX_VALUE)
+
 @Composable
 fun MiniPlayer(repo: Repo, onOpen: () -> Unit) {
     val n = repo.now
@@ -214,7 +220,7 @@ fun MiniPlayer(repo: Repo, onOpen: () -> Unit) {
             Row(Modifier.padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Cover(n.art, 44.dp, base = repo.nowArtBase)
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(n.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
+                    Text(n.title, Modifier.scrollIfLong(), maxLines = 1, fontWeight = FontWeight.SemiBold)
                     Text(
                         n.artist.ifEmpty { n.context.ifEmpty { "Music" } } + if (n.remote) "  ·  on another device" else "",
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -267,8 +273,8 @@ fun NowPlaying(repo: Repo, onClose: () -> Unit, onDevices: () -> Unit) {
             }
             Spacer(Modifier.height(24.dp))
             Text(
-                n.title.ifEmpty { "Nothing playing" }, style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                n.title.ifEmpty { "Nothing playing" }, Modifier.scrollIfLong(), style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1,
             )
             val sub = listOf(n.artist, n.album).filter { it.isNotEmpty() }.joinToString("  ·  ")
             if (sub.isNotEmpty()) {
