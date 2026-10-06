@@ -111,6 +111,8 @@ web UI, no audio output: `./letsgo -music /sdcard/Music -music /sdcard/Download`
   the media widget** on Linux: play, pause, next, previous and seeking, with the song,
   artist and cover art. If this device is only *listening*, the controls act on the
   device that is actually playing.
+- **Headphones or a Bluetooth device disconnect** on Android: the phone pauses and stays
+  paused until you press play, instead of carrying on out of its speaker.
 - **Devices** – every device on the network with what it is doing, how well it is in sync and
   its own sync offset (set it for any device from here), who this device listens to
   (automatic, a device you pick, or an address), and the music folders (add several:
