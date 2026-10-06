@@ -392,11 +392,23 @@ func (n *Node) discover() {
 	if !Discovery {
 		return
 	}
+	var lastSweep time.Time
+	lastAdvert := time.Now() // Start has just announced us
 	for {
 		n.mu.Lock()
 		hint := n.netHint
 		n.mu.Unlock()
 		n.setPeers(snap.Browse(1200*time.Millisecond, n.instance, hint)...)
+		n.keepKnown()
+		if len(n.knownPeers()) == 0 { // multicast may not be getting through (a hotspot): ask by address, and announce again
+			if time.Since(lastSweep) > sweepEvery && n.sweep() {
+				lastSweep = time.Now()
+			}
+			if time.Since(lastAdvert) > readvertiseEvery { // a network that went down and up leaves the old announcement deaf
+				lastAdvert = time.Now()
+				n.advertise()
+			}
+		}
 		select {
 		case <-n.done:
 			return
@@ -476,7 +488,7 @@ func (n *Node) mux() *http.ServeMux {
 		from, c, lat := n.from, n.client, n.latencyMs
 		n.mu.Unlock()
 		st := map[string]any{
-			"name": n.instance, "version": Version, "player": n.p.State(), "volume": vol, "muted": muted,
+			"name": n.instance, "snapPort": n.snapPort, "version": Version, "player": n.p.State(), "volume": vol, "muted": muted,
 			"clients": n.srv.Clients(), "listeningTo": from, "latencyMs": lat, "pinned": n.pinnedAddr(), "now": n.Now(),
 		}
 		if c != nil {

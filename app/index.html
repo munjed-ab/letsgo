@@ -49,6 +49,7 @@ dialog button{display:block;width:100%;text-align:left;margin:4px 0}
 label.opt{display:flex;gap:8px;align-items:center;padding:6px 0}
 .card{background:var(--row);border-radius:12px;padding:10px 14px;margin:8px 0;display:flex;flex-direction:column;gap:4px}
 .card.cur{outline:2px solid var(--ac)}
+.gh{display:inline-flex;align-items:center;gap:8px;background:#24292f;color:#fff;border-radius:8px;padding:9px 14px;text-decoration:none;font-weight:600}.gh small{font-weight:400;opacity:.7}
 .card .bar{padding:0}
 .card input{background:var(--bg)}
 .vd{flex:none;font-size:10px;letter-spacing:.06em;color:var(--dim);border:1px solid var(--dim);border-radius:4px;padding:0 4px}
@@ -102,7 +103,7 @@ body.vid #vidbox{display:flex}body.vid main{display:none}
   <nav id="nav"></nav>
  </aside>
 </div>
-<div id="vidbox"><video id="vid" muted playsinline></video><div id="vmsg" hidden>This screen cannot show this video: its format is not supported here.</div><div id="vcover" hidden><img id="vcimg" alt=""><b id="vcti"></b><small id="vcar"></small></div><button id="vfs" title="Full screen (f)">⛶</button></div>
+<div id="vidbox"><video id="vid" muted playsinline></video><div id="vmsg" hidden>This screen cannot show this video: its format is not supported here, or a part of the file is damaged. The sound still plays.</div><div id="vcover" hidden><img id="vcimg" alt=""><b id="vcti"></b><small id="vcar"></small></div><button id="vfs" title="Full screen (f)">⛶</button></div>
 <main id="view"></main>
 </div>
 <dialog id="dlg"></dialog>
@@ -188,7 +189,7 @@ document.addEventListener('keydown',e=>{
 let videoOn=false,vref=null,vsrc='',vfail=0,vback=0,vcatch=false;   // after a decode error: retries so far, seconds to start earlier by, playing faster to catch up
 let build='';   // which build of the desktop app served this page: a newer one replaces the page, so a window that outlives a restart never runs stale code
 function syncVideo(){
-  const v=$('vid'),has=isVideo(now.track),show=videoOn&&has,full=videoOn&&document.fullscreenElement===$('vidbox');
+  const v=$('vid'),has=isVideo(now.track)&&!now.noPicture,show=videoOn&&has,full=videoOn&&document.fullscreenElement===$('vidbox');
   document.body.classList.toggle('vid',show||full);
   $('bv').hidden=!has;$('bv').classList.toggle('on',videoOn);$('bv').title=videoOn?'Show the cover':'Show the video';
   if(!videoOn&&document.fullscreenElement===$('vidbox'))document.exitFullscreen();
@@ -396,7 +397,9 @@ function devView(){
   <div class="bar"><input id="addr" type="text" placeholder="or type an address, e.g. 192.168.0.20"><button data-a="listenaddr">Listen</button></div>`}
   <h3>Music folders${dev?' on that device':''}</h3><p class="dim">${lib.length} songs from ${sources.length} folder(s). Removing a folder only hides it from letsgo.</p>
   ${sources.map(d=>`<div class="bar"><span style="flex:1;overflow-wrap:anywhere">📁 ${esc(d)}</span><button data-a="rmsrc" data-d="${esc(d)}">Remove</button></div>`).join('')}
-  <div class="bar"><input id="src" type="text" placeholder="/path/to/music" style="flex:1"><button data-a="addsrc">Add folder</button><button data-a="rescan">Rescan</button></div>`;
+  <div class="bar"><input id="src" type="text" placeholder="/path/to/music" style="flex:1"><button data-a="addsrc">Add folder</button><button data-a="rescan">Rescan</button></div>
+  <h3>About</h3><p class="dim">letsgo is open source. Code, releases and issues:</p>
+  <a class="gh" href="https://github.com/munjed-ab/letsgo" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 16 16" fill="#fff" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub <small>munjed-ab/letsgo</small></a>`;
 }
 
 // ---- actions ----

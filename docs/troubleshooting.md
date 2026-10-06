@@ -19,6 +19,11 @@ include song file names and IP addresses; look before you share them.
    → Enter an address…*, on the laptop `./dist/desktop -connect <phone-ip>`, or in the desktop window
    *Music from → Add by address…*.
 
+A phone's **hotspot** is the usual place where multicast (mDNS) is dropped. letsgo then looks for devices
+by address instead: expect up to about 15 seconds for two phones to show up, one on the other's hotspot.
+If a device still does not appear after that, one of the steps above applies, and the log says why
+(look for `mdns` lines).
+
 Then look at *Devices*: a device that is found but shows "Not reachable" can be seen but not
 contacted, which points at a firewall or isolation.
 
@@ -72,8 +77,15 @@ others are known for it).
 - **Not in the list on the phone, or skipped when played:** the phone decodes the sound with Android's
   own codecs, so it plays what the phone can. A file with no audio track, or one the phone has no
   decoder for, is skipped (the log says `skip:`).
+- **A "video" shows nothing, or has no video button:** it has no picture. A `.webm` or `.mp4` saved as
+  audio only (common for downloads of a song's audio) plays as a song; the lists still mark it with the
+  video icon because they go by the file's extension.
 - **"This screen cannot show this video":** that screen's browser or phone cannot decode the picture
-  (HEVC/H.265 is the usual one), or the file failed three times in a row. The sound still plays. A
+  (HEVC/H.265 is the usual one), or the file failed three times in a row. A video with a damaged stretch
+  (ffmpeg says `illegal short term buffer state`) cannot be started from inside that stretch by a
+  browser. **"This phone cannot show this video" for one file** can be a fragmented MP4 (from yt-dlp and
+  similar): the phone cannot seek in it. A laptop with ffmpeg serves a seekable copy of such files by itself;
+  a file that lives on the phone has to be re-saved with `ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4`. The sound still plays. A
   single decode error while jumping to a place in the video is recovered by itself (see
   [how-it-works.md](how-it-works.md)).
 - **The picture is a little early or late:** it follows the same *Sync offset* as the sound of that

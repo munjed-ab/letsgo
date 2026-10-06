@@ -3,6 +3,7 @@
 package com.letsgo.app
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -64,6 +66,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -631,6 +637,27 @@ fun DevicesScreen(repo: Repo, pickFolder: () -> Unit, onDialog: (Dlg) -> Unit) {
             OutlinedButton(onClick = { repo.rescan() }) { Text("Rescan") }
         }
         Text("Removing a folder only hides it from letsgo. Your files are never touched.", style = MaterialTheme.typography.bodySmall, color = dim(), modifier = Modifier.padding(top = 6.dp))
+
+        Spacer(Modifier.height(20.dp))
+        Text("About", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Text("letsgo is open source. Code, releases and issues:", color = dim(), modifier = Modifier.padding(top = 4.dp))
+        GitHubBadge(Modifier.padding(top = 8.dp, bottom = 8.dp))
+    }
+}
+
+private const val REPO_URL = "https://github.com/munjed-ab/letsgo"
+
+/** The project's GitHub badge: opens the repository in the browser. */
+@Composable
+private fun GitHubBadge(modifier: Modifier = Modifier) {
+    val uri = LocalUriHandler.current
+    Row(
+        modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xFF24292F)).clickable { uri.openUri(REPO_URL) }.padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(painterResource(R.drawable.ic_github), null, Modifier.size(20.dp), tint = Color.White)
+        Text("GitHub", Modifier.padding(start = 10.dp), color = Color.White, fontWeight = FontWeight.Bold)
+        Text("munjed-ab/letsgo", Modifier.padding(start = 8.dp), color = Color.White.copy(alpha = 0.7f))
     }
 }
 

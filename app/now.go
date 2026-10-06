@@ -20,17 +20,18 @@ import (
 // is hearing another one, it describes THAT device's track, and Do acts on that
 // device: pause on your phone's notification pauses the laptop that is playing.
 type Now struct {
-	Track    string  `json:"track"`
-	Title    string  `json:"title"` // from the tags, else the file name
-	Artist   string  `json:"artist"`
-	Album    string  `json:"album"`
-	Art      string  `json:"art"` // cover art hash; GET /api/art/<hash> on Source (or here if Source is empty)
-	Context  string  `json:"context"`
-	Playing  bool    `json:"playing"`
-	Elapsed  float64 `json:"elapsed"`
-	Duration float64 `json:"duration"`
-	Remote   bool    `json:"remote"`
-	Source   string  `json:"source"` // host:port of the device being heard, when Remote
+	Track     string  `json:"track"`
+	Title     string  `json:"title"` // from the tags, else the file name
+	Artist    string  `json:"artist"`
+	Album     string  `json:"album"`
+	Art       string  `json:"art"` // cover art hash; GET /api/art/<hash> on Source (or here if Source is empty)
+	Context   string  `json:"context"`
+	Playing   bool    `json:"playing"`
+	NoPicture bool    `json:"noPicture"` // a video file that has sound only: nothing for a screen to show
+	Elapsed   float64 `json:"elapsed"`
+	Duration  float64 `json:"duration"`
+	Remote    bool    `json:"remote"`
+	Source    string  `json:"source"` // host:port of the device being heard, when Remote
 }
 
 // peerHTTPPort is the web/API port on other devices; every letsgo device uses the
@@ -46,6 +47,7 @@ type peerNow struct {
 	at   time.Time
 	now  Now
 	ok   bool
+	got  time.Time // when the last answer came (when its request was made)
 	// following: the last Now described the peer. It stays so while the peer is paused, so pausing
 	// a video from this device's controls keeps showing that video instead of this device's old song.
 	following bool
@@ -65,16 +67,22 @@ func (n *Node) localNow() Now {
 	}
 	return Now{
 		Track: st.Track, Title: title, Artist: i.Artist, Album: i.Album, Art: i.Art,
-		Context: st.Context, Playing: st.Playing, Elapsed: st.Elapsed, Duration: st.Duration,
+		Context: st.Context, Playing: st.Playing, NoPicture: st.NoPicture, Elapsed: st.Elapsed, Duration: st.Duration,
 	}
 }
 
-// httpAddr of the device we listen to, "" if we are not listening to another device.
+// peerGrace is how long the last answer from the device we hear is kept when it stops answering. The
+// video it plays is carried over the same Wi-Fi, so a poll that is merely late must not make this device
+// fall back to its own old song or video (and reload the picture twice). A var so a test can shorten it.
+var peerGrace = 6 * time.Second
+
+// httpAddr of the device we listen to, "" if we are not listening to another device. A connection that
+// just dropped counts: the supervisor is already opening it again, and the screen should not flicker.
 func (n *Node) hearing() string {
 	n.mu.Lock()
-	from, c := n.from, n.client
+	from := n.from
 	n.mu.Unlock()
-	if c == nil || !c.Live() || from == "" {
+	if from == "" {
 		return ""
 	}
 	host, _, err := net.SplitHostPort(from)
@@ -95,26 +103,34 @@ func (n *Node) Now() Now {
 		n.peer.following = false
 		return local
 	}
-	if n.peer.addr != addr || time.Since(n.peer.at) > time.Second {
-		n.peer.addr, n.peer.at = addr, time.Now()
-		n.peer.now, n.peer.ok = Now{}, false
+	if n.peer.addr != addr { // another device: nothing known about it yet
+		n.peer.addr, n.peer.at, n.peer.now, n.peer.ok = addr, time.Time{}, Now{}, false
+	}
+	if time.Since(n.peer.at) > time.Second {
+		n.peer.at = time.Now()
 		c := http.Client{Timeout: 400 * time.Millisecond}
 		if resp, err := c.Get("http://" + addr + "/api/now?local=1"); err == nil {
-			n.peer.ok = json.NewDecoder(resp.Body).Decode(&n.peer.now) == nil
+			var got Now
+			if json.NewDecoder(resp.Body).Decode(&got) == nil {
+				n.peer.now, n.peer.ok, n.peer.got = got, true, n.peer.at
+			}
 			resp.Body.Close()
 		}
+	}
+	if n.peer.ok && time.Since(n.peer.got) > peerGrace { // it has been silent too long: stop showing it
+		n.peer.ok = false
 	}
 	// Follow the peer while it plays. Once it is paused keep following it if we
 	// have nothing of our own queued (or were following it a moment ago), so "play" on
 	// this device's controls resumes it instead of doing nothing.
-	if n.peer.ok { // a missed answer changes nothing: a paused peer must not be dropped by one slow reply
+	if n.peer.ok { // a missed answer keeps the last one (see peerGrace): a paused peer must not be dropped by one slow reply
 		n.peer.following = n.peer.now.Playing || (n.peer.now.Track != "" && (local.Track == "" || n.peer.following))
 	}
 	if n.peer.ok && n.peer.following {
 		r := n.peer.now
 		r.Remote, r.Source = true, addr
 		if r.Playing { // the answer may be up to a second old (see above): move it on, or a video shown here would lag
-			r.Elapsed += time.Since(n.peer.at).Seconds()
+			r.Elapsed += time.Since(n.peer.got).Seconds()
 			if r.Duration > 0 {
 				r.Elapsed = min(r.Elapsed, r.Duration)
 			}

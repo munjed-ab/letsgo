@@ -171,6 +171,7 @@ const setq=v=>{const q=document.getElementById('q');q.value=v;q.dispatchEvent(ne
  ok('volume goes to the device that plays',(await j('/dev/127.0.0.1/api/state')).volume===33&&(await j('/api/state')).volume===100);
  click(document.querySelector('nav button[data-tab="dev"]'));await sleep(500);
  ok('devices tab has a card per device',document.querySelectorAll('.card').length===2,document.getElementById('view').textContent);
+ const gh=document.querySelector('a.gh');ok('the devices tab has the GitHub badge, which opens the repository in a new tab',gh&&gh.href==='https://github.com/munjed-ab/letsgo'&&gh.target==='_blank'&&gh.rel.includes('noopener'),gh&&gh.outerHTML.slice(0,200));
  ok('the controlled device is marked',document.querySelectorAll('.card.cur').length===1&&document.querySelector('.card.cur').textContent.includes('phonetest'),document.getElementById('view').textContent);
  const off=document.querySelector('input[data-lat="127.0.0.1"]');off.value=40;off.dispatchEvent(new Event('change',{bubbles:true}));await sleep(500);
  ok("the other device's sync offset is set from here, this one's is untouched",(await j('/dev/127.0.0.1/api/state')).latencyMs===40&&(await j('/api/state')).latencyMs===-30);

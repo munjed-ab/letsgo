@@ -19,6 +19,7 @@ class VideoAudio : VideoDecoder {
     private var hz = 44100
     private var channels = 2
     private var isFloat = false
+    private var picture = true // the file has a video track
     private var inputDone = false
     private var outputDone = false
     private var skipUs = 0L // after a seek: drop decoded audio that comes before this position
@@ -31,6 +32,7 @@ class VideoAudio : VideoDecoder {
         extractor = ex
         try {
             ex.setDataSource(path)
+            picture = (0 until ex.trackCount).any { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
             val track = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
                 ?: throw IOException("no audio track")
             ex.selectTrack(track)
@@ -55,6 +57,8 @@ class VideoAudio : VideoDecoder {
     }
 
     override fun rate(): Long = hz.toLong()
+
+    override fun noPicture(): Boolean = !picture
 
     override fun read(): ByteArray {
         first?.let { first = null; return it }

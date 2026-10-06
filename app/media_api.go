@@ -84,7 +84,7 @@ func (n *Node) mediaRoutes(mux *http.ServeMux) {
 		if mime, ok := videoMime[strings.ToLower(filepath.Ext(path))]; ok { // Go's own table has none of these
 			w.Header().Set("Content-Type", mime)
 		}
-		http.ServeFile(w, r, path) // answers Range requests, which is how a screen seeks
+		http.ServeFile(w, r, seekableVideo(path)) // answers Range requests, which is how a screen seeks
 	})
 	mux.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		type peer struct {

@@ -2,10 +2,12 @@ package app
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -90,5 +92,89 @@ func TestVideoTrack(t *testing.T) {
 	}
 	if !st.Player.Playing || st.Player.Track != "clip.mp4" || st.Player.Duration < 2.9 || st.Player.Duration > 3.1 {
 		t.Errorf("playing the video: %+v, want clip.mp4 playing, about 3 s long", st.Player)
+	}
+}
+
+// A fragmented MP4 has no length in its header and Android will not seek in it, so the picture is
+// served from an ordinary copy; a file that is already ordinary is served as it is.
+func TestFragmentedVideoIsServedSeekable(t *testing.T) {
+	if !player.VideoSupported() || player.FFmpeg() == "" {
+		t.Skip("no ffmpeg")
+	}
+	t.Setenv("XDG_CACHE_HOME", t.TempDir()) // the copy goes in the cache: not the developer's own
+	music := t.TempDir()
+	plain, err := os.ReadFile("../player/testdata/sweep44100.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(music, "plain.mp4"), plain, 0o644)
+	frag := filepath.Join(music, "frag.mp4")
+	if b, err := exec.Command(player.FFmpeg(), "-nostdin", "-v", "error", "-i", filepath.Join(music, "plain.mp4"), "-c", "copy", "-movflags", "frag_keyframe+empty_moov", frag).CombinedOutput(); err != nil {
+		t.Fatalf("ffmpeg: %v %s", err, b)
+	}
+	if !fragmentedMP4(frag) || fragmentedMP4(filepath.Join(music, "plain.mp4")) {
+		t.Fatal("fragmentedMP4 should say yes for the fragmented file and no for the plain one")
+	}
+	httpAddr := freeAddr(t)
+	n, err := Start([]string{music}, "", freeAddr(t), httpAddr, "video", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer n.Stop()
+	get := func(track string) []byte {
+		resp, err := http.Get("http://" + httpAddr + "/api/video?t=" + track)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return b
+	}
+	if got := get("plain.mp4"); !bytes.Equal(got, plain) {
+		t.Error("a plain mp4 must be served as it is")
+	}
+	got := get("frag.mp4")
+	if len(got) == 0 || fragmentedBytes(got) {
+		t.Fatalf("the fragmented file must be served as an ordinary mp4 (%d bytes, fragmented=%v)", len(got), fragmentedBytes(got))
+	}
+	if i := bytes.Index(got, []byte("mvhd")); i < 0 || binary.BigEndian.Uint32(got[i+16:]) == 0 || binary.BigEndian.Uint32(got[i+20:]) == 0 {
+		t.Error("the copy has no length in its header")
+	}
+}
+
+func fragmentedBytes(b []byte) bool {
+	return bytes.Contains(b, []byte("mvex")) || bytes.Contains(b, []byte("moof"))
+}
+
+// A video extension does not make a picture: an audio-only webm (a song saved from YouTube) is a song for the
+// screens, which then show no video button and no black picture.
+func TestSoundOnlyVideoHasNoPicture(t *testing.T) {
+	if !player.VideoSupported() || player.FFmpeg() == "" {
+		t.Skip("no ffmpeg")
+	}
+	music := t.TempDir()
+	clip, err := os.ReadFile("../player/testdata/sweep44100.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(music, "a-clip.mp4"), clip, 0o644)
+	if b, err := exec.Command(player.FFmpeg(), "-nostdin", "-v", "error", "-f", "lavfi", "-i", "sine=d=3", "-c:a", "libvorbis", filepath.Join(music, "b-voice.webm")).CombinedOutput(); err != nil {
+		if b, err = exec.Command(player.FFmpeg(), "-nostdin", "-v", "error", "-f", "lavfi", "-i", "sine=d=3", "-c:a", "aac", filepath.Join(music, "b-voice.mkv")).CombinedOutput(); err != nil {
+			t.Skipf("ffmpeg cannot make a sound-only file here: %v %s", err, b)
+		}
+		os.Rename(filepath.Join(music, "b-voice.mkv"), filepath.Join(music, "b-voice.webm")) // the name is all the app looks at
+	}
+	n, err := Start([]string{music}, "", freeAddr(t), freeAddr(t), "video", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer n.Stop()
+	for i, want := range []bool{false, true} { // library order: a-clip.mp4, b-voice.webm
+		n.p.PlayIndex(i)
+		time.Sleep(300 * time.Millisecond)
+		if now := n.Now(); now.NoPicture != want {
+			t.Errorf("%s: NoPicture = %v, want %v", now.Track, now.NoPicture, want)
+		}
+		n.p.Pause()
 	}
 }

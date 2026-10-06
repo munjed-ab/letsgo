@@ -43,6 +43,12 @@ All of these are Apache-2.0 (Google, JetBrains):
 
 The release build shrinks these to what the app uses.
 
+## Artwork
+
+- The GitHub mark in *Devices → About* is the `mark-github` icon of [Octicons](https://github.com/primer/octicons)
+  (MIT, GitHub Inc.), drawn as a vector in the app and the web page. It is a link to this repository; use of
+  the mark follows [GitHub's logo guidelines](https://github.com/logos).
+
 ## Programs used but not shipped
 
 - **ffmpeg**, on laptops: if it is installed, letsgo runs it as a separate program to decode the sound

@@ -42,6 +42,9 @@ var ffmpegPath = sync.OnceValue(func() string {
 	return p
 })
 
+// FFmpeg is the path of the ffmpeg program, "" if it is not installed.
+func FFmpeg() string { return ffmpegPath() }
+
 // VideoSupported reports whether this device can play the sound of a video file.
 func VideoSupported() bool { return VideoDecoder != nil || ffmpegPath() != "" }
 
@@ -58,12 +61,13 @@ func openVideo(path string) (source, error) {
 // ffsrc decodes with one ffmpeg process per play position: it writes raw stereo PCM at the
 // stream rate to a pipe, and a seek is a new process started at the new position.
 type ffsrc struct {
-	path   string
-	frames int64 // length in frames, -1 = unknown
-	start  float64
-	cmd    *exec.Cmd
-	out    *bufio.Reader
-	raw    []byte
+	path      string
+	frames    int64 // length in frames, -1 = unknown
+	noPicture bool  // no video stream: a song saved with a video extension (an audio-only webm)
+	start     float64
+	cmd       *exec.Cmd
+	out       *bufio.Reader
+	raw       []byte
 }
 
 func atoi(s string) int { n, _ := strconv.Atoi(s); return n }
@@ -77,7 +81,7 @@ func openFFmpeg(path string) (source, error) {
 	if !strings.Contains(string(info), "Audio:") {
 		return nil, errors.New("no audio track")
 	}
-	s := &ffsrc{path: path, frames: -1}
+	s := &ffsrc{path: path, frames: -1, noPicture: !hasPicture(string(info))}
 	if m := durationRE.FindStringSubmatch(string(info)); m != nil {
 		h, mins := atoi(m[1]), atoi(m[2])
 		sec, _ := strconv.ParseFloat(m[3], 64)
@@ -85,6 +89,19 @@ func openFFmpeg(path string) (source, error) {
 	}
 	return s, nil
 }
+
+// hasPicture reads ffmpeg's listing of a file: is there a video stream (not just a cover picture)?
+func hasPicture(info string) bool {
+	for _, l := range strings.Split(info, "\n") {
+		if strings.Contains(l, "Video:") && !strings.Contains(l, "attached pic") {
+			return true
+		}
+	}
+	return false
+}
+
+// NoPicture reports that the file has sound only, so a screen has nothing to show.
+func (s *ffsrc) NoPicture() bool { return s.noPicture }
 
 func (s *ffsrc) Rate() int     { return Rate }
 func (s *ffsrc) Frames() int64 { return s.frames }

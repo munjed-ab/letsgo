@@ -41,7 +41,11 @@ data class Now(
     val duration: Double = 0.0,
     val remote: Boolean = false,
     val source: String = "",
-)
+    val noPicture: Boolean = false, // a video file with sound only
+) {
+    /** Whether there is a picture to show: a video file that has one. */
+    val hasPicture: Boolean get() = isVideo(track) && !noPicture
+}
 
 /** Whether a track is a video file (its sound plays like a song's, and its picture can be shown). */
 fun isVideo(track: String) = track.substringAfterLast('/').substringAfterLast('.', "").lowercase() in setOf("mp4", "m4v", "mov", "mkv", "webm")
@@ -120,7 +124,7 @@ private fun parseLists(j: JSONObject): Lists {
 fun parseNow(j: JSONObject) = Now(
     j.optString("track"), j.optString("title"), j.optString("artist"), j.optString("album"), j.optString("art"),
     j.optString("context"), j.optBoolean("playing"), j.optDouble("elapsed", 0.0), j.optDouble("duration", 0.0),
-    j.optBoolean("remote"), j.optString("source"),
+    j.optBoolean("remote"), j.optString("source"), j.optBoolean("noPicture"),
 )
 
 /** All UI state plus every action. Actions update the screen right away where they can, then talk to the node. */

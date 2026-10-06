@@ -110,6 +110,17 @@ Peers come from mDNS (`_snapcast._tcp`, UDP 5353), scanned every 4 s in the back
 15 s, so one missed scan cannot cut the music. Probes to peers run in parallel with a 500 ms
 timeout.
 
+Multicast is the first thing a phone's hotspot or a busy Wi-Fi loses, so discovery does not rely on it
+alone (`app/probe.go`). After each scan a peer that was seen before but missed is asked directly
+(`GET /api/state`, 700 ms) and counts as seen if it answers. While no peer is known at all, every other
+address of our own /24 (the phone's own interface address, else the one the default route leaves by) is
+asked the same way every 12 s, 64 at a time; a reply with a name and a `player` is a letsgo device (its
+stream port is `snapPort` in the answer, 1704 for an older build). Also every 30 s while no peer is
+known, the mDNS announcement is made again: after a network went down and up (a hotspot switched off and
+on) the old one no longer receives anything. Finding a device in one direction is enough to play:
+the one that finds the other follows it when it plays, and a device that starts playing tells the one it
+knows with Shift, which is how the other one learns its address.
+
 ### Shift
 
 When a device that was listening (or idle) starts playing, it becomes the source and the rest must
@@ -155,6 +166,20 @@ goes through the player and out to every device; the picture never enters the st
   for library tracks that are videos. A screen that shows the picture takes it from the device that is
   playing (its own node, or the source it hears; the web page goes through `/dev/<ip>/`) and plays it
   muted. It never opens by itself.
+- **Files with sound only.** The extension decides what is *listed* as a video, but not whether there is a
+  picture: a `.webm` saved as audio (a YouTube audio download) has no video stream. When the player opens
+  a file it learns whether there is one (ffmpeg's listing on a laptop, `MediaExtractor` on the phone,
+  through `VideoDecoder.NoPicture`) and `now` carries `noPicture: true`. Screens then treat it as a song:
+  no video button, the cover in place of a black picture. Before the file is opened (and from an older
+  device) it counts as having a picture. The lists still mark every such file with the video icon.
+- **Fragmented files.** A fragmented MP4 (what yt-dlp and many downloaders save: a `moov` with an `mvex`
+  and no `mehd`) has no length in its header, and Android's `MediaPlayer` will not seek in a file without
+  one (it logs `Stream has no duration and is therefore not seekable` and stops): a phone could not
+  follow it and said "cannot show this video". When the device that plays has `ffmpeg`, `GET /api/video`
+  serves a copy made with `-c copy -movflags +faststart` (`app/remux.go`; nothing is re-encoded, the sound
+  still comes from the original) kept in `~/.cache/letsgo/remux/`. A phone has no ffmpeg, so a fragmented
+  file that lives on a phone is still not followable there: re-save it with
+  `ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4`.
 - **Keeping the picture in step.** The node reports the position being *heard* (`Now.Elapsed`); for a
   device that hears another one that answer can be up to a second old, so the node moves it on by its
   age before handing it out. The screen aims at that position minus its own sync offset (its speakers
@@ -170,6 +195,12 @@ goes through the player and out to every device; the picture never enters the st
   through, and catches up by playing up to 4x faster without jumping. Only a format it cannot decode at
   all, or three failures in a row, shows the message. The phone takes the file's length from the node,
   because asking `MediaPlayer` for it fails on some files and that failure is reported as an error.
+- **A late answer does not flip the picture.** The video file travels over the same Wi-Fi as the
+  question "what is it playing?", so under load that answer can come late. A device that hears another
+  keeps the last answer for 6 s (`peerGrace` in `app/now.go`), and keeps hearing it while the audio
+  connection is being opened again, instead of falling back at once to its own last song or video, which
+  closed the picture and loaded it twice (about 2 s black each). After 6 s without any answer it goes
+  back to its own.
 - **Pausing what you hear.** A device that hears another one keeps showing that device's track while
   it is paused, once it has shown it, so pause (or stop) from its controls leaves the video and the
   play button that resumes it in place. It goes back to its own last song only when it plays one.
@@ -192,6 +223,7 @@ goes through the player and out to every device; the picture never enters the st
 | `meta.json` | cached tags and cover-art hashes per track |
 
 The desktop also writes `~/.cache/letsgo/art/` (cover art for the media widget),
+`~/.cache/letsgo/remux/` (seekable copies of fragmented videos, see Videos; never cleaned up, delete any time),
 `~/.cache/letsgo/letsgo.log`, and `~/.config/letsgo/chrome/` (the browser profile of its app window: cache
 and settings of that window only, nothing of yours; safe to delete). Each file is written atomically (temporary file, then rename). If
 `lists.json` cannot be parsed it is kept as `lists.json.bad` instead of being overwritten, so nothing
@@ -215,5 +247,8 @@ you made is lost silently. The other files simply start again (`meta.json` is on
 | Per-listener queue | 256 chunks | `snap/server.go` |
 | Server write deadline / read deadline | 3 s / 15 s | `snap/server.go` |
 | Supervisor tick, mDNS scan, peer lifetime | 400 ms, 4 s, 15 s | `app/app.go` |
+| Subnet sweep, announce again (while no peer is known) | 12 s, 30 s | `app/probe.go` |
+| Last answer of the device heard, kept for | 6 s | `app/now.go` |
+| Phone: network interface looked at | every 3 s | `PlayerService.kt` |
 | Video picture: jump when off by (playing / paused) | web 0.4 s / 0.05 s, phone 0.35 s / 0.1 s | `app/index.html`, `VideoPane.kt` |
 | Video picture: catch-up rate limit (web only) | ±10 % | `app/index.html` |

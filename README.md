@@ -78,8 +78,9 @@ apart from your browsing; a window that is still open when the app restarts relo
 build. Its log is `~/.cache/letsgo/letsgo.log`.
 
 **Another phone or laptop:** install the same app on the same Wi-Fi. It finds the others by itself and shows
-up in everyone's **Devices** tab under its own name. If a network blocks discovery (some routers isolate
-clients), go to *Devices → Listen to → Enter an address…* on the phone, or run the laptop app with
+up in everyone's **Devices** tab under its own name. Where multicast is dropped (a phone's hotspot, some
+routers) devices also look for each other by address, which takes a few more seconds. If a network blocks
+that too (some routers isolate clients), go to *Devices → Listen to → Enter an address…* on the phone, or run the laptop app with
 `-connect <phone-ip>`.
 
 **Headless server (Termux, Raspberry Pi):** `letsgo-android-arm64` / `letsgo-linux-amd64` serve music and the
@@ -158,8 +159,8 @@ More: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Your data and your network
 
-- **Nothing leaves your network.** No accounts, no cloud, no analytics, no update check. The source contains
-  no URL that points off your machine or network.
+- **Nothing leaves your network.** No accounts, no cloud, no analytics, no update check. The only URL in the
+  source that points off your network is the GitHub link in *Devices → About*, opened only when you tap it.
 - **Stored on each device:** favourites, playlists, play counts, your music-folder choices and a cache of
   song tags. The laptop also keeps a log that contains song file names and device addresses.
 - **Listening:** TCP 1704 (the stream) and TCP 8080 (the web UI and API) on all interfaces, and mDNS on the
@@ -219,7 +220,7 @@ that come from a web page on another site are refused).
 | `snap/` | the sync protocol (Snapcast wire format), server, and the client's playout engine |
 | `player/` | decoders (mp3, flac, ogg, wav; `video.go`: the sound of a video through ffmpeg or the phone's decoder) with seeking, resampler, the timestamping audio loop, shuffle |
 | `meta/` | tags and cover art, cached |
-| `app/` | the node: server + HTTP API + discovery + supervisor + playlists + play counts + media control. `shift.go` (Shift), `devices.go` (proxy to other devices), `guard.go` (web-page guard), `index.html` (the UI) |
+| `app/` | the node: server + HTTP API + discovery + supervisor + playlists + play counts + media control. `shift.go` (Shift), `probe.go` (finding devices by address when mDNS fails), `devices.go` (proxy to other devices), `guard.go` (web-page guard), `index.html` (the UI) |
 | `speaker/` | desktop audio output (oto) and its latency model |
 | `mpris/` | Linux media keys and widget |
 | `mobile/`, `android-app/` | Android: gomobile bridge, the native Compose app, the notification/MediaSession service, `VideoAudio.kt` (Android's decoders for a video's sound) and `VideoPane.kt` (the picture) |

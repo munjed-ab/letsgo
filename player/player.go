@@ -51,40 +51,44 @@ type State struct {
 	Count    int     `json:"count"`   // tracks in the queue
 	Context  string  `json:"context"` // what the queue is: "" = whole library, else a label set by the caller
 	Started  bool    `json:"started"` // something has been played here (an idle queue does not count)
+	// NoPicture: the track has a video extension but only sound (an audio-only webm), so there is no
+	// picture to show. False when unknown, which is the case until the file has been opened.
+	NoPicture bool `json:"noPicture"`
 }
 
 type Player struct {
 	sink Sink
 	now  func() time.Duration
 
-	mu      sync.Mutex
-	roots   []string          // music folders; the first one's tracks keep plain relative ids
-	abs     map[string]string // track id -> file on disk
-	lib     []string          // every track id found under the roots
-	queue   []string          // what plays: the library, a playlist, a folder, favourites...
-	ctx     string            // label for the queue, echoed in State
-	idx     int               // position in queue
-	src     source
-	playing bool
-	shuffle bool
-	bag     []int         // shuffle: the deck still to deal this round; the next track is the last element
-	trail   []int         // shuffle: tracks played before the current one, so Prev goes back to what you heard
-	frames  int           // frames produced so far in the current track
-	dur     float64       // current track length in seconds, 0 = unknown
-	buffer  time.Duration // clients play a chunk this long after its timestamp
-	hist    []histEntry   // recent chunks, to work out what is being heard now
-	seekTo  int
-	seeking bool // a Seek is waiting for the audio loop to apply it
-	started bool // playback has been started at least once
-	nextTS  time.Duration
-	flush   bool // the next chunk starts a fresh timeline: flush the listeners first
-	catchup bool // producing a burst that makes up the time between nextTS and now
-	sent    bool // listeners hold audio from us (so a pause has something to flush)
-	heard   int  // frames of the current track produced so far (seeking does not add to it)
-	counted bool // the current track has been counted as played
-	played  func(track string)
-	jump    bool // user picked a track: drop current source
-	done    chan struct{}
+	mu        sync.Mutex
+	roots     []string          // music folders; the first one's tracks keep plain relative ids
+	abs       map[string]string // track id -> file on disk
+	lib       []string          // every track id found under the roots
+	queue     []string          // what plays: the library, a playlist, a folder, favourites...
+	ctx       string            // label for the queue, echoed in State
+	idx       int               // position in queue
+	src       source
+	playing   bool
+	shuffle   bool
+	bag       []int         // shuffle: the deck still to deal this round; the next track is the last element
+	trail     []int         // shuffle: tracks played before the current one, so Prev goes back to what you heard
+	frames    int           // frames produced so far in the current track
+	dur       float64       // current track length in seconds, 0 = unknown
+	soundOnly string        // the track, once opened, when it has no picture
+	buffer    time.Duration // clients play a chunk this long after its timestamp
+	hist      []histEntry   // recent chunks, to work out what is being heard now
+	seekTo    int
+	seeking   bool // a Seek is waiting for the audio loop to apply it
+	started   bool // playback has been started at least once
+	nextTS    time.Duration
+	flush     bool // the next chunk starts a fresh timeline: flush the listeners first
+	catchup   bool // producing a burst that makes up the time between nextTS and now
+	sent      bool // listeners hold audio from us (so a pause has something to flush)
+	heard     int  // frames of the current track produced so far (seeking does not add to it)
+	counted   bool // the current track has been counted as played
+	played    func(track string)
+	jump      bool // user picked a track: drop current source
+	done      chan struct{}
 }
 
 func New(roots []string, sink Sink, now func() time.Duration) *Player {
@@ -272,6 +276,7 @@ func (p *Player) State() State {
 		Context: p.ctx, Started: p.started, Duration: p.dur, Elapsed: heardPos(p.hist, p.frames, p.now()-p.buffer)}
 	if p.idx < len(p.queue) {
 		s.Track = p.queue[p.idx]
+		s.NoPicture = p.soundOnly == s.Track
 	}
 	return s
 }
@@ -547,6 +552,9 @@ func (p *Player) fillLocked(dst []int16) bool {
 			p.src, p.frames, p.hist, p.dur = newResampler(s, Rate), 0, nil, 0
 			if f := p.src.Frames(); f > 0 {
 				p.dur = float64(f) / Rate
+			}
+			if np, ok := s.(interface{ NoPicture() bool }); ok && np.NoPicture() {
+				p.soundOnly = p.queue[p.idx]
 			}
 			log.Printf("playing %s (%d Hz)", p.queue[p.idx], s.Rate())
 		}

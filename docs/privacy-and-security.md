@@ -7,8 +7,10 @@ does with your data and your network, and, just as important, what it does **not
 ## Your data and privacy
 
 **No accounts, no cloud, no telemetry.** letsgo has no login, no analytics, no crash reporting and no
-update check. Its source contains no URL that points off your machine or network (you can check:
-`grep -rnoE "https?://[^ \"]+" --include=*.go --include=*.kt --include=*.html .` finds only
+update check. Its source contains one URL that points off your machine or network: the link to this
+repository behind the GitHub badge in *Devices → About*. It is only opened when you tap or click it, in
+your browser; letsgo itself never contacts it. (You can check:
+`grep -rnoE "https?://[^ \"]+" --include=*.go --include=*.kt --include=*.html .` finds that link,
 `localhost` and `127.0.0.1`, addresses of your own devices assembled at run time, and a made-up
 `evil.example` that a test uses to check that other sites are refused). Your music is never uploaded
 anywhere. Only the audio you are playing moves, from the playing device to the devices on your network.
@@ -18,7 +20,7 @@ anywhere. Only the audio you are playing moves, from the playing device to the d
 | Where | What |
 |---|---|
 | Desktop `~/.config/letsgo/` | `lists.json` (favourites, playlists), `plays.json` (play counts), `sources.json` (music folders), `meta.json` (cached song titles, artists, albums, cover-art hashes), `chrome/` (the browser profile of the app window: its cache, no logins) |
-| Desktop `~/.cache/letsgo/` | `art/` (cover art for the media widget), `letsgo.log` |
+| Desktop `~/.cache/letsgo/` | `art/` (cover art for the media widget), `remux/` (seekable copies of fragmented mp4 videos, see how-it-works; delete any time), `letsgo.log` |
 | Phone | the same files in the app's private storage, which other apps cannot read |
 
 These files describe your library and listening habits. They stay on the device. Nothing reads them
@@ -34,6 +36,12 @@ attach it to a bug report.
 (mDNS) under its name: the phone's model (for example `Infinix X6731B`) or the computer's hostname.
 Change the desktop name with `-name`. Anyone on the same network can see that name and that the
 device is running letsgo.
+
+If multicast does not get through (a phone's hotspot often drops it), a device also looks for others by
+address: while it knows of no other device it sends `GET /api/state` on the letsgo port (8080) to every
+other address of its own /24 subnet, once every 12 s, and it asks the devices it has seen before the same
+way when a scan misses them. That is all it sends, and only inside your own network. `-no-discovery`
+switches it off together with mDNS.
 
 **Android backups.** The app allows Android backup (`allowBackup`), so its private files
 (favourites, playlists, play counts) can be included in a device backup. If you do not want that,

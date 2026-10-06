@@ -107,6 +107,8 @@ type VideoDecoder interface {
 	Open(path string) (int64, error)
 	// Rate is the sample rate of what Read returns (valid after Open).
 	Rate() int
+	// NoPicture reports that the file opened last has no video track, only sound (valid after Open).
+	NoPicture() bool
 	// Read returns the next decoded audio: 16-bit little-endian stereo, whole frames. Empty means the end.
 	Read() ([]byte, error)
 	// SeekUs moves to a position in microseconds; the next Read starts there.
@@ -122,7 +124,7 @@ func SetVideoDecoder(d VideoDecoder) {
 		if err != nil {
 			return nil, err
 		}
-		v := &videoSource{d: d, rate: d.Rate(), frames: -1}
+		v := &videoSource{d: d, rate: d.Rate(), frames: -1, noPicture: d.NoPicture()}
 		if us > 0 {
 			v.frames = us * int64(v.rate) / 1_000_000
 		}
@@ -132,15 +134,17 @@ func SetVideoDecoder(d VideoDecoder) {
 
 // videoSource is a player.Source over a VideoDecoder.
 type videoSource struct {
-	d      VideoDecoder
-	rate   int
-	frames int64
-	buf    []byte // decoded audio not handed out yet
+	d         VideoDecoder
+	rate      int
+	frames    int64
+	noPicture bool
+	buf       []byte // decoded audio not handed out yet
 }
 
-func (v *videoSource) Rate() int     { return v.rate }
-func (v *videoSource) Frames() int64 { return v.frames }
-func (v *videoSource) Close() error  { v.d.Close(); return nil }
+func (v *videoSource) Rate() int       { return v.rate }
+func (v *videoSource) NoPicture() bool { return v.noPicture }
+func (v *videoSource) Frames() int64   { return v.frames }
+func (v *videoSource) Close() error    { v.d.Close(); return nil }
 
 func (v *videoSource) SeekFrame(frame int64) error {
 	v.buf = nil

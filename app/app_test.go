@@ -595,3 +595,47 @@ func TestPausingPeerKeepsShowingIt(t *testing.T) {
 		t.Fatalf("laptop's play must resume the phone (err %v, phone playing %v)", err, a.p.State().Playing)
 	}
 }
+
+// A source whose answers are merely late (its Wi-Fi is busy carrying the video) must not make the
+// listener fall back to its own old song or video, which reloaded the picture twice: the last answer is
+// kept for a while. A source that stays silent is let go.
+func TestSlowSourceKeepsShowingIt(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real-time test")
+	}
+	defer func(g time.Duration) { peerGrace = g }(peerGrace)
+	peerGrace = 3 * time.Second
+	phoneMusic, laptopMusic := t.TempDir(), t.TempDir()
+	writeRampNamed(t, phoneMusic, "phone.wav", 30)
+	writeRampNamed(t, laptopMusic, "laptop.wav", 30)
+	aSnap, aHTTP := freeAddr(t), freeAddr(t)
+	a, err := Start([]string{phoneMusic}, "", aSnap, aHTTP, "phone", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Stop()
+	b, err := Start([]string{laptopMusic}, "", freeAddr(t), freeAddr(t), "laptop", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Stop()
+	b.setPeerPort(port(aHTTP))
+	b.Pin(aSnap)
+
+	b.p.PlayIndex(0) // the laptop has an old song of its own, paused
+	b.p.Pause()
+	a.p.PlayIndex(0)
+	time.Sleep(2500 * time.Millisecond)
+	if n := b.Now(); !n.Remote || n.Track != "phone.wav" {
+		t.Fatalf("laptop should follow the playing phone: %+v", n)
+	}
+	a.httpSrv.Close() // the phone stops answering, its sound still flows
+	time.Sleep(1500 * time.Millisecond)
+	if n := b.Now(); !n.Remote || n.Track != "phone.wav" || !n.Playing {
+		t.Fatalf("one missed answer made the laptop show its own song: %+v", n)
+	}
+	time.Sleep(3 * time.Second)
+	if n := b.Now(); n.Remote || n.Track != "laptop.wav" {
+		t.Errorf("a phone silent for longer than the grace should be let go: %+v", n)
+	}
+}

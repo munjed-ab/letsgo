@@ -15,6 +15,7 @@ type fakeDecoder struct {
 	seekedUs    int64
 	closed      bool
 	openErr     error
+	soundOnly   bool
 }
 
 func (f *fakeDecoder) Open(path string) (int64, error) {
@@ -23,7 +24,8 @@ func (f *fakeDecoder) Open(path string) (int64, error) {
 	}
 	return int64(f.total) * 1_000_000 / 8000, nil
 }
-func (f *fakeDecoder) Rate() int { return 8000 }
+func (f *fakeDecoder) Rate() int       { return 8000 }
+func (f *fakeDecoder) NoPicture() bool { return f.soundOnly }
 func (f *fakeDecoder) Read() ([]byte, error) {
 	if f.next >= f.total {
 		return nil, nil
@@ -52,6 +54,14 @@ func TestVideoDecoderBridge(t *testing.T) {
 	if src.Rate() != 8000 || src.Frames() != 100 {
 		t.Fatalf("rate %d, frames %d; want 8000, 100", src.Rate(), src.Frames())
 	}
+	if np, ok := src.(interface{ NoPicture() bool }); !ok || np.NoPicture() {
+		t.Fatal("a file with a video track must not report NoPicture")
+	}
+	d.soundOnly = true
+	if src, _ = player.VideoDecoder("voice.webm"); !src.(interface{ NoPicture() bool }).NoPicture() {
+		t.Fatal("a file with no video track must report NoPicture")
+	}
+	d.soundOnly = false
 	// reads of any size (here 7 frames, not a multiple of the decoder's 3) lose and repeat nothing
 	pcm, frame := make([]int16, 14), 0
 	for {

@@ -101,7 +101,7 @@ class PlayerService : Service() {
         netThread = Thread {
             while (running) {
                 pushNetwork()
-                try { Thread.sleep(10_000) } catch (_: InterruptedException) { return@Thread }
+                try { Thread.sleep(3_000) } catch (_: InterruptedException) { return@Thread } // a hotspot or Wi-Fi that comes up after the app is noticed within seconds
             }
         }.also { it.start() }
         createSession()

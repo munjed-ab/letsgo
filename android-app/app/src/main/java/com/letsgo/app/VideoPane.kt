@@ -121,7 +121,7 @@ fun VideoFullScreen(repo: Repo, onClose: () -> Unit) {
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { controls = !controls }) {
-        if (isVideo(n.track)) {
+        if (n.hasPicture) {
             VideoPane(repo, Modifier.fillMaxSize(), onAspect = { aspect = it })
         } else {
             Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {

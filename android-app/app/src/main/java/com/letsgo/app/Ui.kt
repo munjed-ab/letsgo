@@ -247,7 +247,7 @@ fun NowPlaying(repo: Repo, onClose: () -> Unit, onDevices: () -> Unit) {
                         maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold,
                     )
                 }
-                if (isVideo(n.track)) {
+                if (n.hasPicture) {
                     // like Spotify: the song's own picture is one tap away, and stays closed until asked for
                     IconButton(onClick = { repo.videoOn = !repo.videoOn }) {
                         Icon(
@@ -260,7 +260,7 @@ fun NowPlaying(repo: Repo, onClose: () -> Unit, onDevices: () -> Unit) {
                 }
             }
             Spacer(Modifier.weight(1f))
-            if (repo.videoOn && isVideo(n.track) && !repo.videoFull) {
+            if (repo.videoOn && n.hasPicture && !repo.videoFull) {
                 VideoPane(repo, Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(12.dp))) { FullScreenButton { repo.videoFull = true } }
             } else {
                 Cover(n.art, 300.dp, base = repo.nowArtBase, large = true, shape = RoundedCornerShape(20.dp))
