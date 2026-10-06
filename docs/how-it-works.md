@@ -17,7 +17,7 @@ A *node* is one running letsgo. It is three things at once:
  phone / laptop / browser ─► HTTP API + web UI :8080 ─► player, lists, supervisor
 ```
 
-- **player** (`player/`) decodes mp3, flac, ogg and wav (and the sound of videos, see below), resamples
+- **player** (`player/`) decodes mp3, flac, ogg and wav (and m4a and the sound of videos, see below), resamples
   to one stream format (44.1 kHz, 16-bit, stereo) and cuts it into 20 ms chunks, each stamped with the
   server clock.
 - **snap server** (`snap/server.go`) sends every chunk to every connected listener. A slow

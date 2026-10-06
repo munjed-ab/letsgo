@@ -230,7 +230,7 @@ func (p *Player) Rescan() {
 			if err != nil {
 				return nil
 			}
-			if !d.IsDir() && (Exts[strings.ToLower(filepath.Ext(path))] || video && IsVideo(path)) {
+			if !d.IsDir() && (Exts[strings.ToLower(filepath.Ext(path))] || video && byPlatform(path)) {
 				rel, _ := filepath.Rel(root, path)
 				id := prefix + filepath.ToSlash(rel)
 				if _, dup := abs[id]; dup {

@@ -69,10 +69,10 @@ func TestSeekAllFormats(t *testing.T) {
 	wav44, wav48 := filepath.Join(dir, "s44.wav"), filepath.Join(dir, "s48.wav")
 	writeSweepWAV(t, wav44, 44100)
 	writeSweepWAV(t, wav48, 48000)
-	files := []string{wav44, wav48, "testdata/sweep44100.mp3", "testdata/sweep48000.mp3", "testdata/sweep44100.ogg", "testdata/sweep44100.flac", "testdata/sweep44100.mp4"}
+	files := []string{wav44, wav48, "testdata/sweep44100.mp3", "testdata/sweep48000.mp3", "testdata/sweep44100.ogg", "testdata/sweep44100.flac", "testdata/sweep44100.mp4", "testdata/sweep44100.m4a"}
 	for _, path := range files {
 		t.Run(filepath.Base(path), func(t *testing.T) {
-			if IsVideo(path) && !VideoSupported() {
+			if byPlatform(path) && !VideoSupported() {
 				t.Skip("no ffmpeg")
 			}
 			raw, err := open(path)
@@ -147,6 +147,7 @@ func TestVideoDecoderHook(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "clip.mp4"), []byte("not really a video"), 0o644)
 	os.WriteFile(filepath.Join(dir, "song.wav"), nil, 0o644)
+	os.WriteFile(filepath.Join(dir, "tune.m4a"), nil, 0o644) // sound only, also decoded by the platform
 
 	old := VideoDecoder
 	defer func() { VideoDecoder = old }()
@@ -157,14 +158,16 @@ func TestVideoDecoderHook(t *testing.T) {
 	}
 	p := New([]string{dir}, sinkFn(func(time.Duration, []byte) {}), func() time.Duration { return 0 })
 	defer p.Close()
-	if lib := p.Library(); len(lib) != 2 || lib[0] != "clip.mp4" {
-		t.Fatalf("library = %v, want the video listed next to the song", lib)
+	if lib := p.Library(); len(lib) != 3 || lib[0] != "clip.mp4" {
+		t.Fatalf("library = %v, want the video and the m4a listed next to the song", lib)
 	}
 	if _, ok := p.VideoFile("clip.mp4"); !ok {
 		t.Error("VideoFile: the video was not found")
 	}
-	if _, ok := p.VideoFile("song.wav"); ok {
-		t.Error("VideoFile served a song")
+	for _, id := range []string{"song.wav", "tune.m4a"} {
+		if _, ok := p.VideoFile(id); ok {
+			t.Errorf("VideoFile served the song %s", id)
+		}
 	}
 	if _, ok := p.VideoFile("../clip.mp4"); ok {
 		t.Error("VideoFile served an id that is not in the library")

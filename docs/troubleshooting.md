@@ -67,7 +67,8 @@ others are known for it).
 - Allow **All files access** when the app asks: the music server reads folders by path.
 - The default folder is the phone's `Music` folder. Add others (SD card, Downloads) in *Devices → Music
   folders*, then *Rescan*.
-- Only mp3, flac, ogg and wav are played, and videos (mp4, m4v, mov, mkv, webm), see the next section.
+- Only mp3, flac, ogg and wav are played, plus m4a and videos (mp4, m4v, mov, mkv, webm). m4a and videos
+  are decoded like a video, so on the laptop they are listed only when `ffmpeg` is installed (next section).
 
 ## Videos are missing, silent or will not show
 

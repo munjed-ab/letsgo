@@ -37,6 +37,10 @@ var VideoDecoder func(path string) (Source, error)
 // IsVideo reports whether path is a video file (by extension).
 func IsVideo(path string) bool { return VideoExts[strings.ToLower(filepath.Ext(path))] }
 
+// byPlatform reports whether path is decoded like a video: a video, or an .m4a (AAC in an
+// MP4 with no picture, which no pure-Go decoder here reads either).
+func byPlatform(path string) bool { return IsVideo(path) || strings.EqualFold(filepath.Ext(path), ".m4a") }
+
 var ffmpegPath = sync.OnceValue(func() string {
 	p, _ := exec.LookPath("ffmpeg")
 	return p

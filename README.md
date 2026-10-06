@@ -48,7 +48,7 @@ is full screen again.
 | | |
 |---|---|
 | **Phone** | Android 7 or newer, **64-bit ARM (arm64)**. Nearly every phone since 2017; not 32-bit or x86 devices or emulators |
-| **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run. **`ffmpeg`** on the PATH if you want videos: it decodes their sound (without it video files are not listed) |
+| **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run. **`ffmpeg`** on the PATH if you want videos: it decodes their sound and m4a files (without it neither is listed) |
 | **Network** | all devices on the same Wi-Fi/LAN, able to reach each other. TCP 1704 and 8080, UDP 5353 (mDNS) |
 | **To build** | Go 1.26+. For the APK also gomobile, JDK 17, Android SDK 34 + NDK 27, Gradle 8.9 ([details](docs/troubleshooting.md#building-from-source)) |
 
@@ -220,7 +220,7 @@ that come from a web page on another site are refused).
 | | |
 |---|---|
 | `snap/` | the sync protocol (Snapcast wire format), server, and the client's playout engine |
-| `player/` | decoders (mp3, flac, ogg, wav; `video.go`: the sound of a video through ffmpeg or the phone's decoder) with seeking, resampler, the timestamping audio loop, shuffle |
+| `player/` | decoders (mp3, flac, ogg, wav; `video.go`: m4a and the sound of a video through ffmpeg or the phone's decoder) with seeking, resampler, the timestamping audio loop, shuffle |
 | `meta/` | tags and cover art, cached |
 | `app/` | the node: server + HTTP API + discovery + supervisor + playlists + play counts + media control. `shift.go` (Shift), `probe.go` (finding devices by address when mDNS fails), `devices.go` (proxy to other devices), `guard.go` (web-page guard), `index.html` (the UI) |
 | `speaker/` | desktop audio output (oto) and its latency model |
