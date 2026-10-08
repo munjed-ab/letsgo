@@ -123,17 +123,56 @@ class PlayerService : Service() {
     // the track + hardware delay, from AudioTrack.getTimestamp), so the node
     // schedules against the real speaker time. That is what keeps this phone in
     // sync with a laptop whose audio path is much shorter.
+    //
+    // The sound moving to or from a Bluetooth speaker can kill the track (write
+    // returns ERROR_DEAD_OBJECT) or restart its frame counters: either left the
+    // phone "playing" in silence. A dead track is opened again, and counters that
+    // no longer match what was written are taken as the new starting point.
     private fun audioLoop() {
         // Run at audio priority so scheduling jitter doesn't starve the device.
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
-        val rate = 44100
-        val frameBytes = 4 // 16-bit stereo
-        val channelMask = AudioFormat.CHANNEL_OUT_STEREO
-        val minBuf = AudioTrack.getMinBufferSize(rate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
+        val focus = Focus(attrs)
+        try {
+            while (running) {
+                try {
+                    playThrough(attrs, focus)
+                } catch (e: Exception) {
+                    Log.w(tag, "audio output failed: ${e.message}")
+                }
+                if (running) {
+                    Log.w(tag, "audio output lost, opening it again")
+                    try { Thread.sleep(200) } catch (_: InterruptedException) { return }
+                }
+            }
+        } finally {
+            abandonAudioFocus()
+        }
+    }
+
+    // Holds audio focus only while actually making sound, so other apps resume once nothing is casting.
+    private inner class Focus(val attrs: AudioAttributes) {
+        private var held = false
+        private var silentRuns = 0
+        fun heard(sound: Boolean) {
+            if (sound) {
+                silentRuns = 0
+                if (!held) { requestAudioFocus(attrs); held = true }
+            } else if (held && ++silentRuns > 100) { // ~2 seconds
+                abandonAudioFocus(); held = false
+            }
+        }
+    }
+
+    // playThrough plays into one AudioTrack until it stops working or the service stops.
+    private fun playThrough(attrs: AudioAttributes, focus: Focus) {
+        val rate = 44100
+        val frameBytes = 4 // 16-bit stereo
+        val channelMask = AudioFormat.CHANNEL_OUT_STEREO
+        val minBuf = AudioTrack.getMinBufferSize(rate, channelMask, AudioFormat.ENCODING_PCM_16BIT)
         // 300 ms device buffer rides out feeder-thread stalls. Its depth costs no
         // sync error because it is measured and reported, not assumed.
         val track = AudioTrack.Builder()
@@ -155,10 +194,8 @@ class PlayerService : Service() {
         var anchorNs = 0L
         var lastPoll = 0L
         var lastLog = 0L
-        track.play()
-        var haveFocus = false
-        var silentRuns = 0
         try {
+            track.play()
             while (running) {
                 val nowNs = System.nanoTime()
                 if (nowNs - lastPoll > 100_000_000L) {
@@ -175,6 +212,14 @@ class PlayerService : Service() {
                 if (latUs < 0 || latUs > 2_000_000L) {
                     val head = track.playbackHeadPosition.toLong() and 0xFFFFFFFFL
                     latUs = ((written - head) and 0xFFFFFFFFL) * 1_000_000L / rate + 40_000L
+                    if (latUs > 2_000_000L) {
+                        // Far more than the track can hold: its counters restarted (a route change).
+                        // Count from where it is now, or the node would think every frame is late.
+                        Log.w(tag, "audio counters jumped (${latUs / 1000} ms queued?), starting them again")
+                        written = head
+                        anchorPos = -1
+                        latUs = 40_000L
+                    }
                 }
                 Mobile.setOutputLatencyUs(latUs)
                 if (nowNs - lastLog > 10_000_000_000L) {
@@ -185,21 +230,15 @@ class PlayerService : Service() {
                 val n = Mobile.read(buf).toInt()
                 if (n > 0) {
                     val w = track.write(buf, 0, n)
-                    if (w > 0) written += w / frameBytes
+                    if (w < 0) {
+                        Log.w(tag, "audio write failed ($w)")
+                        return
+                    }
+                    written += w / frameBytes
                 }
-                // Hold audio focus only while actually making sound, so other
-                // apps resume once nothing is casting.
-                if (hasSound(buf, n)) {
-                    silentRuns = 0
-                    if (!haveFocus) { requestAudioFocus(attrs); haveFocus = true }
-                } else if (haveFocus && ++silentRuns > 100) { // ~2 seconds
-                    abandonAudioFocus(); haveFocus = false
-                }
+                focus.heard(hasSound(buf, n))
             }
-        } catch (e: Exception) {
-            Log.w(tag, "audio loop ended: ${e.message}")
         } finally {
-            abandonAudioFocus()
             try { track.stop() } catch (_: Exception) {}
             track.release()
         }
@@ -261,6 +300,9 @@ class PlayerService : Service() {
         var metaFor = ""
         var artTries = 0
         var art: Bitmap? = null
+        var stateFor = "" // what the session was last told: state and track
+        var posMs = 0L // ... the position it was told, and when
+        var posAt = 0L
         while (running) {
             try {
                 val j = JSONObject(Mobile.nowJSON())
@@ -295,16 +337,27 @@ class PlayerService : Service() {
                     playing -> PlaybackState.STATE_PLAYING
                     else -> PlaybackState.STATE_PAUSED
                 }
-                session?.setPlaybackState(
-                    PlaybackState.Builder()
-                        .setActions(
-                            PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or
-                                PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or
-                                PlaybackState.ACTION_STOP or (if (duration > 0) PlaybackState.ACTION_SEEK_TO else 0)
-                        )
-                        .setState(state, (elapsed * 1000).toLong(), if (playing) 1f else 0f)
-                        .build()
-                )
+                // The session moves the position on by itself from the last update, and every update
+                // also goes out to a connected Bluetooth speaker (AVRCP). So tell it only what it cannot
+                // work out: play/pause, another song, or a jump.
+                val nowMs = android.os.SystemClock.elapsedRealtime()
+                val shownMs = posMs + if (playing) nowMs - posAt else 0
+                val stateKey = "$state|$track|$duration"
+                if (stateKey != stateFor || kotlin.math.abs((elapsed * 1000).toLong() - shownMs) >= 1500) {
+                    stateFor = stateKey
+                    posMs = (elapsed * 1000).toLong()
+                    posAt = nowMs
+                    session?.setPlaybackState(
+                        PlaybackState.Builder()
+                            .setActions(
+                                PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or
+                                    PlaybackState.ACTION_SKIP_TO_NEXT or PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                                    PlaybackState.ACTION_STOP or (if (duration > 0) PlaybackState.ACTION_SEEK_TO else 0)
+                            )
+                            .setState(state, posMs, if (playing) 1f else 0f, posAt)
+                            .build()
+                    )
+                }
 
                 val key = "$track|$playing|$title|$artist|$metaKey"
                 if (key != notifiedFor) {
