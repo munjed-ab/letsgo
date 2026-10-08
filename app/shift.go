@@ -54,7 +54,7 @@ func (n *Node) tellShift(host string) {
 	var resp *http.Response
 	var err error
 	for try := 0; try < 2; try++ { // one retry: Wi-Fi in power save sometimes drops the first packet
-		if resp, err = c.Post(base+"/api/shift?port="+strconv.Itoa(n.snapPort), "", nil); err == nil {
+		if resp, err = c.Post(base+"/api/shift?port="+strconv.Itoa(n.snapPort)+"&id="+n.id, "", nil); err == nil {
 			break
 		}
 	}
@@ -71,11 +71,18 @@ func (n *Node) tellShift(host string) {
 
 // shiftRoutes handles the other end:
 //
-//	POST /api/shift[?port=SNAPPORT]   the caller has started playing: pause here, follow it
+//	POST /api/shift[?port=SNAPPORT&id=ID]   the caller has started playing: pause here, follow it
 func (n *Node) shiftRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/shift", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+			return
+		}
+		if r.URL.Query().Get("id") == n.id {
+			// We asked ourselves: some address of ours got into the list. Following would pause the
+			// music we just started, every time, and it once left a phone unable to play anything.
+			log.Printf("shift: from ourselves (%s), ignored", r.RemoteAddr)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		host, _, err := net.SplitHostPort(r.RemoteAddr)

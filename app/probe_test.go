@@ -5,8 +5,11 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
+	"letsgo/snap"
 )
 
 // Devices must be found by their address when multicast does not get through: a sweep of the subnet finds a
@@ -54,5 +57,38 @@ func TestSweepAndKeepKnown(t *testing.T) {
 	b.mu.Unlock()
 	if time.Since(alive) > time.Second || !gone.Equal(old) {
 		t.Errorf("keepKnown: answering device refreshed %v ago (want just now), silent one %v (want untouched)", time.Since(alive), gone)
+	}
+}
+
+// Whatever puts this device's own address into its list of devices (a sweep on mobile data once
+// did), it never becomes a device to follow: asked by address it is recognised as itself, and a
+// Shift it sends itself is ignored, so playing here keeps playing. That loop once left a phone
+// unable to play anything until the network changed.
+func TestNeverFollowsItself(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real-time test")
+	}
+	dir := t.TempDir()
+	writeRamp(t, dir, 30)
+	aSnap, aHTTP := freeAddr(t), freeAddr(t)
+	a, err := Start([]string{dir}, "", aSnap, aHTTP, "phone", 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Stop()
+	a.setPeerPort(port(aHTTP)) // other devices' API is where ours is: every probe and Shift reaches us
+	if _, ok := a.probe("127.0.0.1"); ok {
+		t.Fatal("asked at its own address, it took itself for another device")
+	}
+	sp, _ := strconv.Atoi(port(aSnap))
+	a.setPeers(snap.Peer{Name: "phone", IP: "127.0.0.1", Port: sp}) // in the list anyway
+	resp, err := http.Post("http://"+aHTTP+"/api/queue", "application/json", strings.NewReader(`{"index":0}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	time.Sleep(2 * time.Second) // the supervisor sees it playing and Shifts everyone it knows
+	if !a.p.State().Playing {
+		t.Fatal("it Shifted to itself and paused its own music")
 	}
 }

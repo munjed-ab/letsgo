@@ -37,12 +37,16 @@ func (n *Node) probe(ip string) (p snap.Peer, ok bool) {
 	}
 	defer resp.Body.Close()
 	var s struct {
+		ID       string          `json:"id"`
 		Name     string          `json:"name"`
 		SnapPort int             `json:"snapPort"` // absent from older builds: the default
 		Player   json.RawMessage `json:"player"`
 	}
 	if resp.StatusCode != http.StatusOK || json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&s) != nil || s.Name == "" || s.Player == nil {
 		return p, false // something else listens on that port
+	}
+	if s.ID == n.id {
+		return p, false // that is us, under an address we did not know was ours (see shift.go)
 	}
 	return snap.Peer{Name: s.Name, IP: ip, Port: cmp.Or(s.SnapPort, 1704)}, true
 }
@@ -87,15 +91,25 @@ func (n *Node) ownSubnet() (netip.Prefix, bool) {
 	ip := ""
 	if hint != nil {
 		ip = hint.IP
-	} else if c, err := net.Dial("udp4", "192.0.2.1:9"); err == nil {
-		ip = c.LocalAddr().(*net.UDPAddr).IP.String()
-		c.Close()
+	} else {
+		ip = routeIP()
 	}
 	a, err := netip.ParseAddr(ip)
 	if err != nil || !a.Is4() || !a.IsPrivate() {
 		return netip.Prefix{}, false
 	}
 	return netip.PrefixFrom(a, 24).Masked(), true
+}
+
+// routeIP is the address the default route leaves by (a UDP "connect" sends nothing, the system only
+// picks the address), "" if there is none.
+func routeIP() string {
+	c, err := net.Dial("udp4", "192.0.2.1:9")
+	if err != nil {
+		return ""
+	}
+	defer c.Close()
+	return c.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
 // sweep asks every other address of our own subnet whether a letsgo device answers, and reports whether
@@ -112,7 +126,7 @@ func (n *Node) sweepPrefix(sub netip.Prefix) bool {
 	n.mu.Lock()
 	hint := n.netHint
 	n.mu.Unlock()
-	self := map[string]bool{}
+	self := map[string]bool{routeIP(): true} // on mobile data there is no hint and Android hides InterfaceAddrs: without this the phone found itself and every Shift paused it
 	if hint != nil {
 		self[hint.IP] = true
 	}

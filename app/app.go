@@ -6,6 +6,7 @@ package app
 
 import (
 	"cmp"
+	"crypto/rand"
 	_ "embed"
 	"encoding/json"
 	"log"
@@ -57,6 +58,7 @@ type Node struct {
 	peer     peerNow
 	httpSrv  *http.Server
 	instance string
+	id       string // random per run: how this node recognises itself in another's answer (see probe, shift)
 	done     chan struct{}
 	snapPort int
 	pinned   string        // if set, the source to listen to when we are not casting (skips discovery)
@@ -132,6 +134,7 @@ func Start(musicDirs []string, dataDir, snapAddr, httpAddr, instance string, buf
 	}
 	sources := OpenSources(dataFile(dataDir, "sources.json"), musicDirs)
 	n := &Node{
+		id:       rand.Text(),
 		srv:      srv,
 		sources:  sources,
 		p:        player.New(sources.List(), srv, snap.Now),
@@ -143,10 +146,10 @@ func Start(musicDirs []string, dataDir, snapAddr, httpAddr, instance string, buf
 		kick:     make(chan struct{}, 1),
 		seen:     map[string]seenPeer{},
 	}
+	n.lists.Song = func(t string) string { return songKey(n.meta.Get(t)) }
 
 	ln, err := net.Listen("tcp", httpAddr)
 	if err != nil {
-	n.lists.Song = func(t string) string { return songKey(n.meta.Get(t)) }
 		n.p.Close()
 		srv.Close()
 		return nil, err
@@ -489,7 +492,7 @@ func (n *Node) mux() *http.ServeMux {
 		from, c, lat := n.from, n.client, n.latencyMs
 		n.mu.Unlock()
 		st := map[string]any{
-			"name": n.instance, "snapPort": n.snapPort, "version": Version, "player": n.p.State(), "volume": vol, "muted": muted,
+			"name": n.instance, "id": n.id, "snapPort": n.snapPort, "version": Version, "player": n.p.State(), "volume": vol, "muted": muted,
 			"clients": n.srv.Clients(), "listeningTo": from, "latencyMs": lat, "pinned": n.pinnedAddr(), "now": n.Now(),
 		}
 		if c != nil {
