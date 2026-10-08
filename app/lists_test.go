@@ -1,6 +1,7 @@
 package app
 
 import (
+	"letsgo/meta"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -175,5 +176,30 @@ func TestSources(t *testing.T) {
 	s.Remove(other)
 	if l := OpenSources(path, []string{music}).List(); len(l) != 0 {
 		t.Errorf("empty list came back as %v", l)
+	}
+}
+
+// The same song saved in two folders goes into a playlist once, whichever copy is added and when.
+// Untagged files only match themselves, and different songs by one artist are all kept.
+func TestPlaylistSkipsSameSongFromAnotherFolder(t *testing.T) {
+	tags := map[string]meta.Info{
+		"1000125511/5. Immigrants @You Only Die 1nce (Deluxe).mp3": {Title: "Immigrants", Artist: "Kendrick Lamar, Zacari"},
+		"MOST-PERFECT-EVER/Immigrants.mp3":                         {Title: "immigrants ", Artist: "Kendrick Lamar"},
+		"MOST-PERFECT-EVER/Rabbit Mode.mp3":                        {Title: "Rabbit Mode", Artist: "Kendrick Lamar"},
+		"Audio/seasynth/01 - America Online.mp3":                   {},
+		"Audio/seasynth/02. America Online.mp3":                    {},
+	}
+	l := OpenLists("")
+	l.Song = func(tr string) string { return songKey(tags[tr]) }
+	id, _ := l.CreatePlaylist("Mix", "")
+	l.AddToPlaylist(id, []string{"MOST-PERFECT-EVER/Immigrants.mp3", "Audio/seasynth/01 - America Online.mp3"})
+	l.AddToPlaylist(id, []string{
+		"1000125511/5. Immigrants @You Only Die 1nce (Deluxe).mp3", // already there from another folder
+		"MOST-PERFECT-EVER/Rabbit Mode.mp3",
+		"Audio/seasynth/02. America Online.mp3", // no tags: not known to be the same song
+	})
+	want := []string{"MOST-PERFECT-EVER/Immigrants.mp3", "Audio/seasynth/01 - America Online.mp3", "MOST-PERFECT-EVER/Rabbit Mode.mp3", "Audio/seasynth/02. America Online.mp3"}
+	if got := l.Snapshot().Playlists[0].Tracks; !reflect.DeepEqual(got, want) {
+		t.Fatalf("playlist = %q\nwant       %q", got, want)
 	}
 }

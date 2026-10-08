@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+
+	"letsgo/meta"
 )
 
 // Playlist is an ordered list of tracks (paths relative to the music folder).
@@ -28,6 +31,9 @@ type Playlist struct {
 type Lists struct {
 	mu   sync.Mutex
 	path string // "" = in memory only
+	// Song names the song a track is (title and artist), "" when unknown. A playlist never gets a
+	// second copy of a song saved in another folder. nil = only the very same file counts.
+	Song func(track string) string `json:"-"`
 
 	Favorites []string   `json:"favorites"`
 	Folders   []string   `json:"folders"`
@@ -202,7 +208,8 @@ func (l *Lists) DeletePlaylist(id string) error {
 	return nil
 }
 
-// AddToPlaylist appends tracks, skipping ones already in the playlist.
+// AddToPlaylist appends tracks, skipping ones already in the playlist: the same file, or the same
+// song from another file (see Song).
 func (l *Lists) AddToPlaylist(id string, tracks []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -210,10 +217,27 @@ func (l *Lists) AddToPlaylist(id string, tracks []string) error {
 	if p == nil {
 		return errBad
 	}
-	for _, t := range tracks {
-		if t != "" && !slices.Contains(p.Tracks, t) {
-			p.Tracks = append(p.Tracks, t)
+	songs := map[string]bool{}
+	song := func(t string) string {
+		if l.Song == nil {
+			return ""
 		}
+		return l.Song(t)
+	}
+	for _, t := range p.Tracks {
+		songs[song(t)] = true
+	}
+	for _, t := range tracks {
+		if t == "" || slices.Contains(p.Tracks, t) {
+			continue
+		}
+		if s := song(t); s != "" {
+			if songs[s] {
+				continue
+			}
+			songs[s] = true
+		}
+		p.Tracks = append(p.Tracks, t)
 	}
 	l.save()
 	return nil
@@ -282,4 +306,21 @@ func (l *Lists) DeleteFolder(name string) error {
 	}
 	l.save()
 	return nil
+}
+
+// songKey is what makes two files the same song: the title and first artist from their tags, with
+// case, spacing and punctuation ignored. A file without a title tag is only ever itself.
+// ponytail: tags only; file names alone gave false matches (two takes of a song on one album).
+func songKey(i meta.Info) string {
+	if strings.TrimSpace(i.Title) == "" {
+		return ""
+	}
+	artist, _, _ := strings.Cut(i.Artist, ",")
+	return squash(i.Title) + "\x00" + squash(artist)
+}
+
+func squash(s string) string {
+	return strings.Join(strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}), " ")
 }

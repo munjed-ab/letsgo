@@ -146,6 +146,7 @@ func Start(musicDirs []string, dataDir, snapAddr, httpAddr, instance string, buf
 
 	ln, err := net.Listen("tcp", httpAddr)
 	if err != nil {
+	n.lists.Song = func(t string) string { return songKey(n.meta.Get(t)) }
 		n.p.Close()
 		srv.Close()
 		return nil, err
