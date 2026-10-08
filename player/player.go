@@ -488,7 +488,17 @@ func (p *Player) loop() {
 			}
 			continue
 		}
+		var t0 time.Duration
+		if p.flush {
+			t0 = p.now()
+		}
 		ok := p.fillLocked(pcm16)
+		if ok && p.flush {
+			// First chunk of a fresh timeline: it is heard startLead after it is ready, not after
+			// the press. Opening a file (MediaCodec on a slow phone) can take longer than the
+			// startLead slack, and the burst would then reach the listeners too late to play.
+			p.nextTS += p.now() - t0
+		}
 		ts := p.nextTS
 		p.nextTS += chunkDur
 		flush := ok && p.flush

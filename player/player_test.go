@@ -333,10 +333,13 @@ func TestControlsAreHeardQuickly(t *testing.T) {
 	check := func(what string, pressed time.Duration, evs []recEvent) {
 		t.Helper()
 		if len(evs) < 10 || !evs[0].flush || evs[1].flush {
+		for len(evs) > 0 && !evs[0].flush && evs[0].ts < pressed+lead+chunkDur { // filled just before the command
+			evs = evs[1:]
+		}
 			t.Fatalf("%s: want a Flush then chunks, got %d events, first flush=%v", what, len(evs), len(evs) > 0 && evs[0].flush)
 		}
 		heardAt := evs[1].ts + buffer
-		if lag := heardAt - pressed; lag < startLead-100*time.Millisecond || lag > startLead+100*time.Millisecond {
+		if lag := heardAt - pressed; lag < startLead-100*time.Millisecond || lag > startLead+250*time.Millisecond { // + the open or seek, which now delays the start
 			t.Errorf("%s: first chunk is heard %v after the command, want ~%v", what, lag.Round(time.Millisecond), startLead)
 		}
 		for i := 2; i < len(evs); i++ {
@@ -494,5 +497,47 @@ func TestPlaysAreCountedOncePerListen(t *testing.T) {
 	time.Sleep(600 * time.Millisecond)
 	if c := counted(); len(c) != 1 {
 		t.Fatalf("seeking counted a play again: %v", c)
+	}
+}
+
+// slowSrc is a silent track whose open took a while, like MediaCodec on a slow phone.
+type slowSrc struct{}
+
+func (slowSrc) Rate() int                     { return Rate }
+func (slowSrc) Read(dst []int16) (int, error) { clear(dst); return len(dst), nil }
+func (slowSrc) Close() error                  { return nil }
+func (slowSrc) SeekFrame(int64) error         { return nil }
+func (slowSrc) Frames() int64                 { return -1 }
+
+// A slow open must delay the start, not eat the listeners' slack: the first chunk is still
+// heard startLead after it is ready (it used to be startLead after the press, so a 300 ms open
+// left the phones a burst that was already due, and they stuttered into every new song).
+func TestSlowOpenStillStartsTogether(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real-time test")
+	}
+	const openTime = 300 * time.Millisecond
+	old := VideoDecoder
+	defer func() { VideoDecoder = old }()
+	VideoDecoder = func(string) (Source, error) { time.Sleep(openTime); return slowSrc{}, nil }
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.mp4"), []byte("x"), 0o644)
+	rec := &recSink{}
+	start := time.Now()
+	now := func() time.Duration { return time.Since(start) }
+	p := New([]string{dir}, rec, now)
+	defer p.Close()
+	const buffer = time.Second
+	p.SetBuffer(buffer)
+
+	pressed := now()
+	p.PlayIndex(0)
+	time.Sleep(openTime + 400*time.Millisecond)
+	evs := rec.since(0)
+	if len(evs) < 2 || !evs[0].flush {
+		t.Fatalf("want a Flush then chunks, got %d events", len(evs))
+	}
+	if lag := evs[1].ts + buffer - pressed; lag < openTime+startLead-50*time.Millisecond {
+		t.Errorf("first chunk is heard %v after the press, want at least open (%v) + startLead (%v)", lag.Round(time.Millisecond), openTime, startLead)
 	}
 }
