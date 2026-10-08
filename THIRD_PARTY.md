@@ -20,6 +20,7 @@ and by reading each module's `LICENSE` file. Re-run it when you change `go.mod`.
 | [ebitengine/purego](https://github.com/ebitengine/purego) | v0.11.0 | Apache-2.0 | calling system audio libraries without cgo |
 | [hajimehoshi/go-mp3](https://github.com/hajimehoshi/go-mp3) | v0.3.4 | Apache-2.0 | mp3 decoding |
 | [mewkiz/flac](https://github.com/mewkiz/flac) | v1.0.14 | Unlicense | flac decoding |
+| [thesyncim/gopus](https://github.com/thesyncim/gopus) | v0.2.2 | BSD-3-Clause | Opus encoding and decoding of the stream between devices |
 | [jfreymuth/oggvorbis](https://github.com/jfreymuth/oggvorbis), [vorbis](https://github.com/jfreymuth/vorbis) | v1.0.5, v1.0.2 | MIT | ogg vorbis decoding |
 | [dhowden/tag](https://github.com/dhowden/tag) | 2024-04-17 | BSD-2-Clause | song tags and cover art |
 | [godbus/dbus](https://github.com/godbus/dbus) | v5.2.2 | BSD-2-Clause | Linux media keys and widget (MPRIS) |
@@ -28,7 +29,7 @@ and by reading each module's `LICENSE` file. Re-run it when you change `go.mod`.
 | [cenkalti/backoff](https://github.com/cenkalti/backoff) | v2.2.1 | MIT | retries inside zeroconf |
 | icza/bitio, jfreymuth/pulse, mewkiz/pkg, mewpkg/term | see `go.mod` | Apache-2.0, MIT, Unlicense, Unlicense | helpers of the libraries above |
 | [golang.org/x/net](https://pkg.go.dev/golang.org/x/net), [x/crypto](https://pkg.go.dev/golang.org/x/crypto), [x/sys](https://pkg.go.dev/golang.org/x/sys) | see `go.mod` | BSD-3-Clause | networking and system calls |
-| the Go standard library and runtime | Go 1.26 or newer | BSD-3-Clause | everything else |
+| the Go standard library and runtime | Go 1.27 or newer | BSD-3-Clause | everything else |
 
 `golang.org/x/mobile` (BSD-3-Clause) is used at build time by `gomobile bind` to package the Go node for
 Android.

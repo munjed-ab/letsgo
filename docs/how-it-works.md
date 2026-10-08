@@ -78,10 +78,20 @@ nothing; from 3 ms it plays 0.2 % faster or slower (inaudible) until the smoothe
 1 ms; beyond 100 ms it skips or pads silence. The error is smoothed with a 4 s time constant because
 audio callbacks are jittery.
 
-**Buffers.** The jitter buffer holds up to 5 s. The server queues up to 256 chunks (about 5 s) per
-listener and drops that listener's chunks, never anyone else's, if it falls further behind. A gap
+**Buffers.** The sync buffer is 4 s, so a listener holds about that much audio ahead and a stall of
+the network (or of the source) shorter than that is not heard. Commands do not wait for it (see
+below). The jitter buffer holds up to 8 s: the buffer plus up to 2 s of a device's sync offset. The
+server queues up to 256 chunks (about 5 s) per listener and drops that listener's chunks, never
+anyone else's, if it falls further behind; after a stall it skips queued chunks whose time has
+passed rather than spend the link on them, and only a connection silent for 15 s is hung up. A gap
 of up to 2 s in the timestamps is filled with silence, an overlap is trimmed, anything bigger
 restarts the timeline.
+
+**A source that falls behind** (a phone frozen for a moment under memory pressure) produces in a
+burst to catch up while its listeners still hold enough to cover it (the buffer minus the 350 ms
+start lead); only beyond that does it jump its timeline forward. On the phone, a video's sound is
+decoded about 20 s ahead on its own goroutine (`player/ahead.go`): with another app in front,
+Android's decoder blocked for 3 to 8 s at a time, and the player used to wait on it.
 
 ## What letsgo adds to the protocol
 
@@ -258,9 +268,13 @@ you made is lost silently. The other files simply start again (`meta.json` is on
 | Hard resync / slew on / slew off | 100 ms / 3 ms / 1 ms | `snap/client.go` |
 | Slew rate, error smoothing | 0.2 %, 4 s | `snap/client.go` |
 | Clock samples kept / used | 16 / best 4 | `snap/client.go` |
-| Jitter buffer | 5 s | `snap/client.go` |
+| Jitter buffer | 8 s | `snap/client.go` |
 | Per-listener queue | 256 chunks | `snap/server.go` |
-| Server write deadline / read deadline | 3 s / 15 s | `snap/server.go` |
+| Server write deadline / read deadline | 10 s / 15 s | `snap/server.go` |
+| Opus bitrate / codec delay stamped back | 192 kbit/s / about 7 ms | `snap/opus.go` |
+| Resampler (44.1 <-> 48 kHz for Opus) | 48-tap Kaiser-windowed sinc | `snap/opus.go` |
+| Missing Opus chunk concealed | 300 ms before it is due | `snap/opus.go` |
+| Video sound decoded ahead (phone) | about 20 s | `player/ahead.go` |
 | Supervisor tick, mDNS scan, peer lifetime | 400 ms, 4 s, 15 s | `app/app.go` |
 | Subnet sweep, announce again (while no peer is known) | 12 s, 30 s | `app/probe.go` |
 | Last answer of the device heard, kept for | 6 s | `app/now.go` |

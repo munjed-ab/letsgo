@@ -141,7 +141,7 @@ current build (close old windows and start letsgo again), and see `windowArgs` i
 
 | Tool | Version used | Notes |
 |---|---|---|
-| Go | 1.26 or newer (built with 1.27) | the `go` line in `go.mod` |
+| Go | 1.27 or newer | the `go` line in `go.mod` |
 | gomobile | from `go install golang.org/x/mobile/cmd/gomobile@latest`, then `gomobile init` | Android build only |
 | JDK | 17 | Android build only |
 | Android SDK | platform 34, build-tools 34, NDK 27.1.12297006 | set `ANDROID_HOME` and `ANDROID_NDK_HOME` |

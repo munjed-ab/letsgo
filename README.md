@@ -35,8 +35,8 @@ is full screen again.
 
 ## Status: read this first
 
-- It has been used on one Android 14 phone (arm64) and one Linux laptop. That is all it has been
-  tested on in the real world. Other phones, other Linux setups and other networks may hit problems
+- It has been used on two Android phones (Android 14 and Android 10, both arm64) and one Linux laptop.
+  That is all it has been tested on in the real world. Other phones, other Linux setups and other networks may hit problems
   nobody has seen yet.
 - It is built for a **home network you trust**. There is **no login and no encryption**: anyone on the same
   network can control your devices and listen to the stream. Do not run it on public or shared Wi-Fi.
@@ -50,7 +50,7 @@ is full screen again.
 | **Phone** | Android 7 or newer, **64-bit ARM (arm64)**. Nearly every phone since 2017; not 32-bit or x86 devices or emulators |
 | **Laptop** | Linux with PulseAudio or PipeWire, and a Chrome-family browser for the app window (otherwise your default browser). macOS and Windows have never been run. **`ffmpeg`** on the PATH if you want videos: it decodes their sound and m4a files (without it neither is listed) |
 | **Network** | all devices on the same Wi-Fi/LAN, able to reach each other. TCP 1704 and 8080, UDP 5353 (mDNS) |
-| **To build** | Go 1.26+. For the APK also gomobile, JDK 17, Android SDK 34 + NDK 27, Gradle 8.9 ([details](docs/troubleshooting.md#building-from-source)) |
+| **To build** | Go 1.27+. For the APK also gomobile, JDK 17, Android SDK 34 + NDK 27, Gradle 8.9 ([details](docs/troubleshooting.md#building-from-source)) |
 
 ## Get it running
 
@@ -156,7 +156,9 @@ The details (wire format, what letsgo adds to the Snapcast protocol, every timin
 
 **Something sounds early or late?** Bluetooth speakers add 100–250 ms. Use *Devices → Sync offset* on that
 device (or `-latency <ms>` on the laptop app): + plays later, − earlier.
-**Stutters on bad Wi-Fi?** Raise the buffer on the playing laptop: `-buffer 6000`.
+**Stutters on bad Wi-Fi?** Each listener holds 4 s of audio, and the stream between devices is Opus over
+UDP, so most stalls are not heard. Still dropping? Raise the buffer on the playing laptop (`-buffer 6000`),
+or move the phone to 5 GHz Wi-Fi.
 More: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Your data and your network
@@ -165,8 +167,8 @@ More: [docs/troubleshooting.md](docs/troubleshooting.md).
   source that points off your network is the GitHub link in *Devices → About*, opened only when you tap it.
 - **Stored on each device:** favourites, playlists, play counts, your music-folder choices and a cache of
   song tags. The laptop also keeps a log that contains song file names and device addresses.
-- **Listening:** TCP 1704 (the stream) and TCP 8080 (the web UI and API) on all interfaces, and mDNS on the
-  local network. Devices announce their name (the phone model, or the computer's hostname).
+- **Listening:** TCP 1704 (the stream) and TCP 8080 (the web UI and API) on all interfaces, mDNS on the
+  local network, and, while listening to another device, a random UDP port for the audio. Devices announce their name (the phone model, or the computer's hostname).
 - **Not protected:** anyone on the network can control a device, read your library's file names and tags,
   and listen to the stream. Web pages cannot (they are refused), other programs can.
 
@@ -232,14 +234,25 @@ that come from a web page on another site are refused).
 
 ## Known limits
 
-- The stream is Opus at 192 kbit/s per listener (uncompressed PCM, 1.4 Mbit/s, for stock snapclients and
-  older letsgo builds).
+- **A phone as the source, with another heavy app in front, can still glitch.** Android lets an app keep
+  its Wi-Fi out of power save only while the app is on screen. With YouTube (say) in front, on a busy
+  2.4 GHz channel that the phone also shares with a Bluetooth speaker, its Wi-Fi delivers in bursts and its
+  own decoder can freeze for seconds. The 4 s buffer, Opus over UDP and the video read-ahead ride out most
+  of it, not all. If it matters, play from the laptop, or put the phone on 5 GHz.
+- A stall longer than the buffer (4 s) is heard. A listener missing an Opus chunk that never arrives fills
+  it with Opus's concealment (a 20 ms patch, usually inaudible) instead of a gap.
+- The stream to another letsgo device is Opus at 192 kbit/s, which is transparent for music but not
+  bit-exact. The source's own speaker, stock snapclients and older letsgo builds get uncompressed PCM
+  (1.4 Mbit/s each).
+- Sync between devices relies on each one's reported output delay. Bluetooth speakers and the laptop's
+  sound card are estimates; set the difference by ear with *Sync offset*. There is no automatic
+  calibration yet.
 - Videos: only the sound is cast. A screen that shows the picture fetches the video file from the device
   that plays it, so it must reach that device, and the picture is within about a tenth of a second of the
   sound, not frame-exact. A screen that cannot decode a video (HEVC in some browsers) says so and the
   sound is unaffected. Which files count as videos is decided by their extension, and one with no audio
   track is skipped. The desktop needs `ffmpeg`; the phone uses Android's own decoders, so it plays what
-  the phone can. The phone side has been tried on an emulator, not yet on a real phone.
+  the phone can.
 - Each device's library, favourites and playlists are its own. The desktop window can browse and
   edit another device's, but they are not merged or copied between devices.
 - The laptop app is not native: it shows the web UI in a Chrome-style app window (needs a
@@ -249,9 +262,25 @@ that come from a web page on another site are refused).
 - Devices only find each other, and stay in sync, on a network where they can reach one another
   directly (the same Wi-Fi). Across networks (a VPN, say) you have to give the address and raise
   `-buffer`; there is no cloud relay.
-- Shift and the instant controls need the same recent build on both devices; older devices fall back to
-  the old, slower behaviour.
+- Shift, the instant controls and Opus need the same recent build on both devices; older devices fall
+  back to the old, slower behaviour and PCM.
+- The phone's sync buffer is fixed at 4 s; only the laptop app and the headless server take `-buffer`.
 - No automated builds or releases yet, and no continuous integration.
+
+## Future plans
+
+Ideas, in rough order, not promises:
+
+- **Automatic sync calibration.** A button that plays a click on each device in turn while a phone's mic
+  listens, measures each one's real delay (Bluetooth included) and sets its sync offset.
+- **Resending lost audio over UDP.** A listener asks the source again for a chunk it is missing, instead of
+  waiting for the TCP copy, so longer losses are covered without concealment.
+- **Find out why the phone's decoder freezes** with another app in front, and whether a video's sound
+  can be decoded without it.
+- **A per-device buffer setting on the phone**, like `-buffer` on the laptop.
+- **Pairing**: a code shown on one device and typed on the other, so only your devices can control and
+  hear each other, and the stream can be encrypted.
+- **Continuous integration and automated releases.**
 
 ## Contributing, licence
 

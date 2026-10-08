@@ -54,6 +54,7 @@ turn the manifest attribute off before you build.
 | TCP 1704 | Snapcast stream | the audio stream to listeners | all interfaces |
 | TCP 8080 | HTTP | the web UI and the control API | all interfaces (`-http` changes it) |
 | UDP 5353 | mDNS | announcing this device and finding others | multicast on the local network |
+| UDP, random port | Snapcast chunks (Opus) | a copy of the audio, while listening to another letsgo device; the source sends it from another random port | all interfaces |
 
 Other devices reach a node on these ports, which is how listening, control and Shift work. If you
 run a firewall, allow them from your local network only.
@@ -121,6 +122,8 @@ only works from the same machine and only on the desktop app.
 - `-http 127.0.0.1:8080` limits the web UI and API to the machine itself. That also stops other
   devices controlling it and stops Shift from reaching it, but streaming to it still works.
 - A firewall that allows TCP 1704 and 8080 and UDP 5353 only from your LAN subnet is the simplest hardening.
+  A listener also receives the audio over UDP on a random port; where a firewall blocks that, the audio
+  comes over TCP 1704 alone, with more stalls on a poor Wi-Fi.
 - Stock Snapcast clients can connect to a letsgo device; they have the same lack of authentication.
 
 ## Supply chain
