@@ -98,7 +98,7 @@ class PlayerService : Service() {
         val name = Build.MODEL ?: "phone"
         try {
             Mobile.setVideoDecoder(VideoAudio()) // before start: the library is scanned there, and videos are listed only if they can be decoded
-            Mobile.start(musicDir, filesDir.absolutePath, name, 1000L)
+            Mobile.start(musicDir, filesDir.absolutePath, name, 4000L)
             Log.i(tag, "node started, music=$musicDir name=$name")
         } catch (e: Exception) {
             Log.e(tag, "Mobile.start failed", e)
@@ -418,7 +418,9 @@ class PlayerService : Service() {
         multicastLock = wifi.createMulticastLock("letsgo-mdns").apply {
             setReferenceCounted(false); acquire()
         }
-        // Wi-Fi power save bunches packets and adds jitter; ask for the low-latency mode.
+        // Wi-Fi power save bunches packets and adds jitter; ask for the low-latency mode. Android only
+        // grants it while the app is on screen (a high-perf lock is turned into this same lock on 14), so
+        // in the background stalls of a few seconds still happen: the 4 s sync buffer rides them out.
         val wifiMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
             WifiManager.WIFI_MODE_FULL_LOW_LATENCY
         else @Suppress("DEPRECATION") WifiManager.WIFI_MODE_FULL_HIGH_PERF

@@ -38,8 +38,23 @@ project.
 
 Every message is a 26-byte header (`type, id, refersTo, sent, received, size`, little-endian) plus a
 payload. The messages used are `Hello`, `ServerSettings` (buffer, volume, mute), `CodecHeader`
-(`pcm` plus a WAV header), `WireChunk` (audio) and `Time` (clock sync). The audio is raw PCM,
-about 1.4 Mbit/s per listener; there is no compression.
+(`pcm` plus a WAV header, or `opus`), `WireChunk` (audio) and `Time` (clock sync).
+
+A letsgo listener on another device asks for Opus in its `Hello` (`"Codecs": "opus"`) and gets
+192 kbit/s instead of 1.4 Mbit/s of raw PCM, which a phone in Wi-Fi power save on a busy channel can
+always keep up with. Each 20 ms chunk is resampled from 44.1 to 48 kHz (Opus takes nothing else),
+encoded into one packet, and resampled back after decoding, so every packet keeps its chunk's
+timestamp; the listener moves it back by the codec's fixed delay (about 7 ms, `opusDelay` in
+`snap/opus.go`) so it plays in step with PCM listeners. The source's own speaker, stock snapclients
+and older letsgo builds get PCM.
+
+Such a listener also gives a UDP port in its `Hello`, and every Opus chunk is sent there too. TCP
+holds back everything behind a lost packet until it is resent, which on a phone sharing its radio
+with Bluetooth on a busy channel meant stalls of a second or more, many times a minute; over the same
+minute UDP lost 3 packets in 3000. The chunk's sequence number (the header's `id`; the empty chunk
+that starts a timeline carries its first one) puts the two copies back in order, each chunk is
+decoded once, and one that neither path delivers before it is due is concealed by Opus. Where UDP is
+blocked, the TCP copy alone carries the audio as before.
 
 ## Keeping devices in step
 
@@ -49,7 +64,7 @@ pings: a burst of 8 pings 100 ms apart on connect, then one per second. From the
 takes the 4 with the lowest round-trip time and uses their median offset.
 
 **One rule for playout.** A chunk stamped `ts` must be *heard* at `ts + buffer + latency`, where
-`buffer` is the server's sync buffer (default 1000 ms) and `latency` is the per-device sync offset
+`buffer` is the server's sync buffer (default 4000 ms) and `latency` is the per-device sync offset
 you can set. Audio handed to the device is heard `outLat` later, so the client hands over each chunk
 `outLat` early. `outLat` is what makes a phone and a laptop agree:
 
@@ -238,7 +253,7 @@ you made is lost silently. The other files simply start again (`meta.json` is on
 | Chunk | 20 ms (882 frames) | `player/player.go` |
 | Produce ahead of now | 60 ms | `player/player.go` |
 | Start lead for commands | 350 ms | `player/player.go` |
-| Sync buffer | 1000 ms default (`-buffer`) | `main.go`, `cmd/desktop` |
+| Sync buffer | 4000 ms default (`-buffer`) | `main.go`, `cmd/desktop` |
 | Play counts after | 30 s (or half a short track) | `player/player.go` |
 | Hard resync / slew on / slew off | 100 ms / 3 ms / 1 ms | `snap/client.go` |
 | Slew rate, error smoothing | 0.2 %, 4 s | `snap/client.go` |

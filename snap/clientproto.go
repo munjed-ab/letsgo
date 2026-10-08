@@ -9,9 +9,11 @@ import (
 // the two messages a client sends: Hello (once) and Time pings (every second).
 
 // HelloMsg identifies us to the server. The server reads the JSON after the
-// 4-byte length prefix and uses HostName as the client's display name.
-func HelloMsg(id uint16, host, name string) []byte {
-	j, _ := json.Marshal(map[string]string{"HostName": host, "ClientName": name})
+// 4-byte length prefix and uses HostName as the client's display name. codecs
+// "opus" asks a letsgo server for Opus instead of PCM, and udpPort (if not 0) for
+// a copy of every chunk over UDP to that port (others ignore both).
+func HelloMsg(id uint16, host, name, codecs string, udpPort int) []byte {
+	j, _ := json.Marshal(map[string]any{"HostName": host, "ClientName": name, "Codecs": codecs, "Udp": udpPort})
 	b := frame(TypeHello, 0, lenPrefixed(j))
 	le.PutUint16(b[2:], id)
 	return b
@@ -40,7 +42,8 @@ func ParseTimeReply(p []byte) time.Duration {
 func StampSent(b []byte) { stampSent(b) }
 
 // ParseCodecHeader reads a CodecHeader payload: len-prefixed codec name, then a
-// len-prefixed codec header (a 44-byte WAV header for "pcm"). Returns rate/bits/ch.
+// len-prefixed codec header (a 44-byte WAV header for "pcm", see opusHeader for "opus").
+// Returns the rate/bits/ch of the PCM it stands for.
 func ParseCodecHeader(p []byte) (codec string, rate, bits, ch int, ok bool) {
 	if len(p) < 4 {
 		return
@@ -53,6 +56,9 @@ func ParseCodecHeader(p []byte) (codec string, rate, bits, ch int, ok bool) {
 	hdr := p[4+n:]
 	m := int(le.Uint32(hdr))
 	hdr = hdr[4:]
+	if codec == "opus" && len(hdr) >= m && m >= 12 && le.Uint32(hdr) == opusMarker { // see opusHeader
+		return codec, int(le.Uint32(hdr[4:])), int(le.Uint16(hdr[8:])), int(le.Uint16(hdr[10:])), true
+	}
 	if len(hdr) < m || m < 44 {
 		return codec, 0, 0, 0, false
 	}

@@ -156,7 +156,7 @@ The details (wire format, what letsgo adds to the Snapcast protocol, every timin
 
 **Something sounds early or late?** Bluetooth speakers add 100–250 ms. Use *Devices → Sync offset* on that
 device (or `-latency <ms>` on the laptop app): + plays later, − earlier.
-**Stutters on bad Wi-Fi?** Raise the buffer on the playing laptop: `-buffer 1500`.
+**Stutters on bad Wi-Fi?** Raise the buffer on the playing laptop: `-buffer 6000`.
 More: [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Your data and your network
@@ -232,7 +232,8 @@ that come from a web page on another site are refused).
 
 ## Known limits
 
-- The stream is uncompressed PCM, about 1.4 Mbit/s per listener. Fine for a handful of devices.
+- The stream is Opus at 192 kbit/s per listener (uncompressed PCM, 1.4 Mbit/s, for stock snapclients and
+  older letsgo builds).
 - Videos: only the sound is cast. A screen that shows the picture fetches the video file from the device
   that plays it, so it must reach that device, and the picture is within about a tenth of a second of the
   sound, not frame-exact. A screen that cannot decode a video (HEVC in some browsers) says so and the

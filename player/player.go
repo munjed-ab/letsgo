@@ -473,10 +473,10 @@ func (p *Player) loop() {
 		if p.catchup && p.nextTS >= now {
 			p.catchup = false
 		}
-		// Fell behind by a lot (phone froze, GC, whatever)? Don't burst to
-		// catch up, just jump the timeline forward. Never stall, never flood.
-		// (A restart is behind on purpose: see restartLocked.)
-		if !p.catchup && now-p.nextTS > 300*time.Millisecond {
+		// Fell behind (phone froze, GC, whatever)? While the listeners still hold enough to cover it,
+		// catch up in a burst and nobody hears a thing. Only past that is the audio lost anyway: jump
+		// the timeline forward rather than flood. (A restart is behind on purpose: see restartLocked.)
+		if !p.catchup && now-p.nextTS > max(300*time.Millisecond, p.buffer-startLead) {
 			log.Printf("player fell behind by %v, skipping ahead", (now - p.nextTS).Round(time.Millisecond))
 			p.nextTS = now
 		}

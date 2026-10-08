@@ -47,8 +47,9 @@ router such as `music.home`), start it with `LETSGO_ALLOWED_HOSTS=music.home`.
 ## Stutters or drops out
 
 - Wi-Fi is the usual cause, especially the 2.4 GHz band in a crowded place. Move closer or use 5 GHz.
-- Raise the sync buffer on the device that is **playing**: `-buffer 1500` (laptop app or headless
-  server). The buffer belongs to the source; the phone app uses 1000 ms.
+- The sync buffer (4000 ms by default) rides out a Wi-Fi stall shorter than itself. Still drops? Raise it
+  on the device that is **playing**: `-buffer 6000` (laptop app or headless server). The buffer belongs to
+  the source; the phone app uses 4000 ms. Play, next and seek stay quick whatever the buffer.
 - A phone in battery saver can pause Wi-Fi. See the next section.
 
 ## The phone stops when the screen turns off

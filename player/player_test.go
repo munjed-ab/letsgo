@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -332,10 +333,10 @@ func TestControlsAreHeardQuickly(t *testing.T) {
 	// about startLead after the command (stamp + buffer), and nothing was skipped
 	check := func(what string, pressed time.Duration, evs []recEvent) {
 		t.Helper()
-		if len(evs) < 10 || !evs[0].flush || evs[1].flush {
 		for len(evs) > 0 && !evs[0].flush && evs[0].ts < pressed+lead+chunkDur { // filled just before the command
 			evs = evs[1:]
 		}
+		if len(evs) < 10 || !evs[0].flush || evs[1].flush {
 			t.Fatalf("%s: want a Flush then chunks, got %d events, first flush=%v", what, len(evs), len(evs) > 0 && evs[0].flush)
 		}
 		heardAt := evs[1].ts + buffer
@@ -539,5 +540,42 @@ func TestSlowOpenStillStartsTogether(t *testing.T) {
 	}
 	if lag := evs[1].ts + buffer - pressed; lag < openTime+startLead-50*time.Millisecond {
 		t.Errorf("first chunk is heard %v after the press, want at least open (%v) + startLead (%v)", lag.Round(time.Millisecond), openTime, startLead)
+	}
+}
+
+// A source that froze for a second (a phone under memory pressure) must catch up, not skip: the
+// listeners hold a whole buffer, so as long as the freeze is shorter than that nobody hears it.
+func TestShortFreezeCatchesUpWithoutSkipping(t *testing.T) {
+	if testing.Short() {
+		t.Skip("real-time test")
+	}
+	old := VideoDecoder
+	defer func() { VideoDecoder = old }()
+	VideoDecoder = func(string) (Source, error) { return slowSrc{}, nil }
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "a.mp4"), []byte("x"), 0o644)
+	rec := &recSink{}
+	start := time.Now()
+	var jump atomic.Int64 // the freeze: the clock leaps ahead as if the loop had not run for that long
+	now := func() time.Duration { return time.Since(start) + time.Duration(jump.Load()) }
+	p := New([]string{dir}, rec, now)
+	defer p.Close()
+	p.SetBuffer(4 * time.Second)
+	p.PlayIndex(0)
+	time.Sleep(500 * time.Millisecond)
+	jump.Store(int64(time.Second))
+	time.Sleep(500 * time.Millisecond)
+
+	evs := rec.since(0)
+	var last time.Duration
+	for i, e := range evs {
+		if e.flush {
+			last = 0
+			continue
+		}
+		if last != 0 && e.ts-last != chunkDur {
+			t.Fatalf("chunk %d is stamped %v after the one before, want %v: audio was skipped", i, e.ts-last, chunkDur)
+		}
+		last = e.ts
 	}
 }

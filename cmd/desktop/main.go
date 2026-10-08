@@ -36,7 +36,7 @@ func main() {
 	name := flag.String("name", hostname(), "name shown to other devices")
 	httpAddr := flag.String("http", ":8080", "web UI address")
 	latency := flag.Int("latency", 0, "extra delay ms for this device, e.g. Bluetooth speakers (+ plays later)")
-	buffer := flag.Int("buffer", 1000, "sync buffer ms; raise if audio stutters")
+	buffer := flag.Int("buffer", 4000, "sync buffer ms: a Wi-Fi stall shorter than this is not heard")
 	connect := flag.String("connect", "", "listen to this host when not casting, instead of auto-discovery (for networks that block mDNS)")
 	noWindow := flag.Bool("no-window", false, "don't open the UI window")
 	noDisc := flag.Bool("no-discovery", false, "do not advertise or look for other devices (use -connect / stock Snapcast clients)")

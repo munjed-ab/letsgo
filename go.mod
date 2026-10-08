@@ -1,6 +1,6 @@
 module letsgo
 
-go 1.26.0
+go 1.27.0
 
 // The two replace lines fetch golang.org/x/sys and golang.org/x/text from their official GitHub
 // mirrors at pinned versions. They date from the project's first build environment and are known
@@ -22,6 +22,7 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/mewkiz/flac v1.0.14
+	github.com/thesyncim/gopus v0.2.2
 )
 
 require (

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"net/netip"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -11,7 +12,7 @@ import (
 )
 
 const (
-	maxBuffered = 5 * time.Second // jitter buffer capacity; oldest audio is dropped beyond it
+	maxBuffered = 8 * time.Second // jitter buffer capacity (the 4 s sync buffer + up to 2 s of sync offset, with room); oldest audio is dropped beyond it
 	maxGapFill  = 2 * time.Second // bigger timestamp gaps/overlaps reseed the buffer instead
 	contigTol   = 500 * time.Microsecond
 
@@ -72,6 +73,12 @@ type Client struct {
 	underruns, resyncs int
 	epoch              uint16 // timeline restarts seen so far (see WireChunkMsg)
 
+	// Opus (see opus.go). jmu guards opus and the reorder state: the TCP and UDP loops both feed it.
+	udp  net.PacketConn // the server's UDP copy of the audio arrives here; nil without Opus
+	jmu  sync.Mutex
+	opus *opusDec // set when the server sends Opus
+	jit  reorder
+
 	Ready chan struct{} // closed once the codec header arrives
 	live  atomic.Bool   // false once the connection drops
 }
@@ -90,6 +97,9 @@ type Stats struct {
 
 // Live reports whether the connection is still up (false after the peer drops).
 func (c *Client) Live() bool { return c.live.Load() }
+
+// OpusOnLoopback makes a client ask for Opus from a server on this same device too (tests).
+var OpusOnLoopback = false
 
 // Connect dials the server. name is how this device shows up in the server's
 // listener list; latencyMs is a per-device offset (positive = play later).
@@ -110,7 +120,14 @@ func Connect(addr, name string, latencyMs int) (*Client, error) {
 		Ready:      make(chan struct{}),
 	}
 	c.live.Store(true)
-	c.send(HelloMsg(1, name, name))
+	codecs, udpPort := "opus", 0
+	if ap, err := netip.ParseAddrPort(conn.RemoteAddr().String()); err == nil && ap.Addr().Unmap().IsLoopback() && !OpusOnLoopback {
+		codecs = "" // our own server: PCM is exact and costs nothing to carry
+	} else if u, err := net.ListenPacket("udp", ":0"); err == nil {
+		c.udp, udpPort = u, u.LocalAddr().(*net.UDPAddr).Port
+		go c.udpLoop()
+	}
+	c.send(HelloMsg(1, name, name, codecs, udpPort))
 	go c.readLoop()
 	go c.pinger()
 	return c, nil
@@ -153,6 +170,9 @@ func (c *Client) ping() error {
 func (c *Client) readLoop() {
 	defer c.live.Store(false)
 	defer c.conn.Close()
+	if c.udp != nil {
+		defer c.udp.Close()
+	}
 	buf := make([]byte, 0, 8192) // reused across messages; no per-chunk garbage
 	var lastChunk time.Time
 	for {
@@ -166,7 +186,18 @@ func (c *Client) readLoop() {
 		case TypeServerSettings:
 			c.applySettings(p)
 		case TypeCodecHeader:
-			if codec, rate, bits, ch, ok := ParseCodecHeader(p); ok && codec == "pcm" && bits == 16 && ch > 0 && rate > 0 {
+			if codec, rate, bits, ch, ok := ParseCodecHeader(p); ok && (codec == "pcm" || codec == "opus") && bits == 16 && ch > 0 && rate > 0 {
+				var d *opusDec
+				if codec == "opus" {
+					var err error
+					if d, err = newOpusDec(rate, ch); err != nil {
+						log.Printf("opus: %v", err)
+						return // hang up: the reconnect asks again
+					}
+				}
+				c.jmu.Lock()
+				c.opus, c.jit = d, reorder{}
+				c.jmu.Unlock()
 				c.mu.Lock()
 				c.Rate, c.Bits, c.Channels = rate, bits, ch
 				c.frameBytes = ch * bits / 8
@@ -187,7 +218,9 @@ func (c *Client) readLoop() {
 				log.Printf("audio gap: nothing from the server for %v (a pause, or a network stall)", gap.Round(time.Millisecond))
 			}
 			lastChunk = time.Now()
-			c.pushChunkEpoch(p, h.RefersTo)
+			if !c.putOpus(h, p) {
+				c.pushChunkEpoch(p, h.RefersTo)
+			}
 		}
 	}
 }
@@ -292,7 +325,10 @@ func (c *Client) write(data []byte) {
 // when it changes (pause, play, jump, seek) whatever is queued is dropped.
 func (c *Client) pushChunkEpoch(p []byte, epoch uint16) {
 	c.mu.Lock()
-	if epoch != c.epoch {
+	if d := int16(epoch - c.epoch); d < 0 && c.buf != nil {
+		c.mu.Unlock()
+		return // a straggler from a timeline already replaced
+	} else if d != 0 {
 		c.epoch = epoch
 		c.r, c.w, c.aligned = 0, 0, false
 	}
@@ -497,4 +533,9 @@ func (c *Client) Stats() Stats {
 }
 
 // Close stops the client.
-func (c *Client) Close() error { return c.conn.Close() }
+func (c *Client) Close() error {
+	if c.udp != nil {
+		c.udp.Close()
+	}
+	return c.conn.Close()
+}

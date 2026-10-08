@@ -24,7 +24,7 @@ func main() {
 	snapAddr := flag.String("snap", ":1704", "snapcast stream listen address")
 	httpAddr := flag.String("http", ":8080", "web UI / API listen address")
 	name := flag.String("name", "letsgo", "name shown to other devices (mDNS)")
-	buffer := flag.Int("buffer", 1000, "client buffer ms (higher = more stable on bad Wi-Fi, slower pause)")
+	buffer := flag.Int("buffer", 4000, "sync buffer ms: a Wi-Fi stall shorter than this is not heard")
 	noDisc := flag.Bool("no-discovery", false, "do not advertise or look for other devices (use -connect / stock Snapcast clients)")
 	flag.Parse()
 	if *noDisc {
