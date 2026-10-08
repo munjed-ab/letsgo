@@ -39,7 +39,9 @@ func IsVideo(path string) bool { return VideoExts[strings.ToLower(filepath.Ext(p
 
 // byPlatform reports whether path is decoded like a video: a video, or an .m4a (AAC in an
 // MP4 with no picture, which no pure-Go decoder here reads either).
-func byPlatform(path string) bool { return IsVideo(path) || strings.EqualFold(filepath.Ext(path), ".m4a") }
+func byPlatform(path string) bool {
+	return IsVideo(path) || strings.EqualFold(filepath.Ext(path), ".m4a")
+}
 
 var ffmpegPath = sync.OnceValue(func() string {
 	p, _ := exec.LookPath("ffmpeg")
@@ -54,7 +56,11 @@ func VideoSupported() bool { return VideoDecoder != nil || ffmpegPath() != "" }
 
 func openVideo(path string) (source, error) {
 	if VideoDecoder != nil {
-		return VideoDecoder(path)
+		s, err := VideoDecoder(path)
+		if err != nil {
+			return nil, err
+		}
+		return newAhead(s), nil
 	}
 	if ffmpegPath() == "" {
 		return nil, errors.New("ffmpeg is not installed")
